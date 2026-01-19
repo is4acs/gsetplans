@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react';
-import { Upload, FileSpreadsheet, CheckCircle, AlertCircle, X, CloudUpload } from 'lucide-react';
+import { Upload, FileSpreadsheet, CheckCircle, AlertCircle, X, UploadCloud } from 'lucide-react';
 import * as XLSX from 'xlsx';
 
 // Get settings to access prices
@@ -322,7 +322,7 @@ export default function FileImport({ onImportComplete }) {
               <div className={`w-20 h-20 rounded-2xl flex items-center justify-center transition-colors ${
                 dragActive ? 'bg-emerald-500 text-white' : 'bg-emerald-50 dark:bg-emerald-500/20 text-emerald-500'
               }`}>
-                <CloudUpload className="w-10 h-10" />
+                <UploadCloud className="w-10 h-10" />
               </div>
             )}
             <div>
