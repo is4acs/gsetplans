@@ -1,48 +1,130 @@
 import { useState, useEffect } from 'react';
 import { 
-  Upload, LayoutDashboard, Users, LogOut, Menu, X, Settings,
-  TrendingUp, Euro, Calendar, BarChart3, PieChart, User, Plus, Trash2, Save
+  Upload, LayoutDashboard, LogOut, Menu, X, Settings,
+  TrendingUp, Euro, Calendar, BarChart3, PieChart, User, Plus, Trash2, Save, Link
 } from 'lucide-react';
 import FileImport from './components/FileImport';
 import ImportHistory from './components/ImportHistory';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
-  PieChart as RePieChart, Pie, Cell, Legend
+  PieChart as RePieChart, Pie, Cell
 } from 'recharts';
+
+// === PRIX CANAL+ ===
+const CANAL_PRICES = {
+  AERC: { gset: 117.45, tech: 70.47 },
+  BPMS: { gset: 84.40, tech: 50.64 },
+  CHRC: { gset: 169.50, tech: 101.70 },
+  FARC: { gset: 156.60, tech: 93.96 },
+  INRC: { gset: 139.26, tech: 83.56 },
+  PBEA: { gset: 288.77, tech: 173.26 },
+  PBEC: { gset: 201.30, tech: 120.78 },
+  PBEF: { gset: 280.15, tech: 168.09 },
+  PBIS: { gset: 176.12, tech: 105.67 },
+  PDOS: { gset: 89.00, tech: 53.40 },
+  SAVD: { gset: 240.00, tech: 144.00 },
+  SAVS: { gset: 73.87, tech: 44.32 },
+  SAVG: { gset: 73.87, tech: 44.32 },
+  TXPA: { gset: 119.00, tech: 71.40 },
+  TXPB: { gset: 178.50, tech: 107.10 },
+  TXPC: { gset: 373.10, tech: 223.86 },
+  TXPD: { gset: 174.20, tech: 104.52 },
+};
+
+// === GSE MAPPING (référence) ===
+const GSE_NAMES = {
+  'GSE 02': 'Wendelle Edwige',
+  'GSE 03': 'Claude',
+  'GSE 04': 'Alan Pantoja',
+  'GSE 05': 'Maxime Paul',
+  'GSE 06': 'Carlos',
+  'GSE 15': 'Luckmane Cyrile',
+  'GSE 16': 'Dautruche Sauvenel',
+  'GSE 17': 'Jahwer Sellemi',
+  'GSE 18': 'Bakour Fallah',
+  'GSE 19': 'Zakaria Settou',
+};
 
 // === DEFAULT SETTINGS ===
 const DEFAULT_SETTINGS = {
-  coefficients: {
-    orange: 0.5,  // Tech touche 50% du montant ST Orange
-    canal: 0.5    // Tech touche 50% du montant ST Canal+
-  },
-  deductionTypes: [
-    { id: 'materiel', label: 'Matériel', default: 0 },
-    { id: 'carburant', label: 'Carburant', default: 0 },
-    { id: 'avance', label: 'Avance sur prestation', default: 0 },
-    { id: 'malus', label: 'Malus', default: 0 },
-  ]
+  coefficients: { orange: 0.5, canal: 0.5 },
 };
 
-// === DEFAULT USERS ===
+// === DEFAULT USERS avec aliases ===
 const DEFAULT_USERS = {
-  admin: { password: 'admin123', role: 'dir', name: 'Direction GSET', techName: null },
-  zakaria: { password: 'zak123', role: 'tech', name: 'Zakaria Settou', techName: 'SETTOU Zakaria' },
-  macedo: { password: 'mac123', role: 'tech', name: 'Macedo Pansa', techName: 'PANSA Macedo' },
-  prochette: { password: 'pro123', role: 'tech', name: 'Jean Paulin Prochette', techName: 'PROCHETTE Jean paulin' },
-  cyrile: { password: 'cyr123', role: 'tech', name: 'Cyrile Luckmane', techName: 'LUCKMANE Cyrile' },
-  claude: { password: 'cla123', role: 'tech', name: 'Claude', techName: 'Claude' },
-  maxime: { password: 'max123', role: 'tech', name: 'Maxime Paul', techName: 'Maxime Paul' },
-};
-
-// Variantes de noms pour matcher Orange vs Canal+
-const TECH_ALIASES = {
-  'SETTOU Zakaria': ['SETTOU Zakaria', 'Zakaria Settou', 'Zakaria SETTOU', 'SETTOU'],
-  'PANSA Macedo': ['PANSA Macedo', 'Macedo Pansa', 'PANSA'],
-  'PROCHETTE Jean paulin': ['PROCHETTE Jean paulin', 'PROCHETTE Jean Paulin', 'Jean Paulin Prochette', 'PROCHETTE'],
-  'LUCKMANE Cyrile': ['LUCKMANE Cyrile', 'Cyrile Luckmane', 'LUCKMANE', 'LUKMANE Cyrile'],
-  'Claude': ['Claude'],
-  'Maxime Paul': ['Maxime Paul', 'PAUL Maxime'],
+  admin: { 
+    password: 'admin123', 
+    role: 'dir', 
+    name: 'Direction GSET', 
+    aliases: [] 
+  },
+  zakaria: { 
+    password: 'zak123', 
+    role: 'tech', 
+    name: 'Zakaria Settou', 
+    aliases: ['SETTOU Zakaria', 'Zakaria Settou', 'Zakaria SETTOU', 'GSE 19']
+  },
+  macedo: { 
+    password: 'mac123', 
+    role: 'tech', 
+    name: 'Macedo Pansa', 
+    aliases: ['PANSA Macedo', 'Macedo Pansa', 'Macedo PANSA']
+  },
+  prochette: { 
+    password: 'pro123', 
+    role: 'tech', 
+    name: 'Jean Paulin Prochette', 
+    aliases: ['PROCHETTE Jean paulin', 'PROCHETTE Jean Paulin', 'Jean Paulin Prochette']
+  },
+  cyrile: { 
+    password: 'cyr123', 
+    role: 'tech', 
+    name: 'Cyrile Luckmane', 
+    aliases: ['LUCKMANE Cyrile', 'Luckmane Cyrile', 'Cyrile Luckmane', 'GSE 15']
+  },
+  jahwer: { 
+    password: 'jah123', 
+    role: 'tech', 
+    name: 'Jahwer Sellemi', 
+    // Jahwer gère aussi le planning de Claude (GSE 03)
+    aliases: ['Jahwer Sellemi', 'GSE 17', 'GSE 03', 'Claude']
+  },
+  maxime: { 
+    password: 'max123', 
+    role: 'tech', 
+    name: 'Maxime Paul', 
+    aliases: ['Maxime Paul', 'PAUL Maxime', 'GSE 05']
+  },
+  alan: { 
+    password: 'ala123', 
+    role: 'tech', 
+    name: 'Alan Pantoja', 
+    aliases: ['Alan Pantoja', 'Alan PANTOJA', 'GSE 04']
+  },
+  sauvenel: { 
+    password: 'sau123', 
+    role: 'tech', 
+    name: 'Dautruche Sauvenel', 
+    aliases: ['Dautruche Sauvenel', 'DAUTRUCHE Sauvenel', 'GSE 16']
+  },
+  carlos: { 
+    password: 'car123', 
+    role: 'tech', 
+    name: 'Carlos', 
+    aliases: ['Carlos', 'GSE 06']
+  },
+  bakour: { 
+    password: 'bak123', 
+    role: 'tech', 
+    name: 'Bakour Fallah', 
+    aliases: ['Bakour Fallah', 'GSE 18']
+  },
+  wendelle: { 
+    password: 'wen123', 
+    role: 'tech', 
+    name: 'Wendelle Edwige', 
+    aliases: ['Wendelle Edwige', 'Wendell Edwige', 'GSE 02']
+  },
 };
 
 // === HELPERS ===
@@ -53,18 +135,18 @@ function getSettings() {
 
 function getUsers() {
   const saved = localStorage.getItem('ftth_users');
-  return saved ? JSON.parse(saved) : DEFAULT_USERS;
+  if (saved) {
+    const users = JSON.parse(saved);
+    Object.keys(users).forEach(k => {
+      if (!users[k].aliases) users[k].aliases = [];
+    });
+    return users;
+  }
+  return DEFAULT_USERS;
 }
 
-function getTechDeductions(techName) {
-  const all = JSON.parse(localStorage.getItem('ftth_deductions') || '{}');
-  return all[techName] || {};
-}
-
-function saveTechDeductions(techName, deductions) {
-  const all = JSON.parse(localStorage.getItem('ftth_deductions') || '{}');
-  all[techName] = deductions;
-  localStorage.setItem('ftth_deductions', JSON.stringify(all));
+function resolveGSEToName(gseCode) {
+  return GSE_NAMES[gseCode] || gseCode;
 }
 
 // === LOGIN ===
@@ -102,8 +184,7 @@ function Login({ onLogin }) {
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Utilisateur</label>
             <input
-              type="text"
-              value={username}
+              type="text" value={username}
               onChange={(e) => { setUsername(e.target.value); setError(''); }}
               className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-teal-500 focus:border-transparent outline-none"
               placeholder="Identifiant"
@@ -112,8 +193,7 @@ function Login({ onLogin }) {
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Mot de passe</label>
             <input
-              type="password"
-              value={password}
+              type="password" value={password}
               onChange={(e) => { setPassword(e.target.value); setError(''); }}
               className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-teal-500 focus:border-transparent outline-none"
               placeholder="••••••••"
@@ -125,25 +205,30 @@ function Login({ onLogin }) {
           </button>
         </form>
 
-        <div className="mt-6 p-4 bg-gray-50 rounded-xl text-xs text-gray-500">
+        <div className="mt-6 p-4 bg-gray-50 rounded-xl text-xs text-gray-500 max-h-40 overflow-y-auto">
           <p className="font-medium mb-2">Comptes:</p>
           <p>• <b>admin</b> / admin123 <span className="text-purple-600">(Direction)</span></p>
-          {techUsers.slice(0, 4).map(([k, u]) => (
+          {techUsers.slice(0, 6).map(([k, u]) => (
             <p key={k}>• <b>{k}</b> / {u.password}</p>
           ))}
-          {techUsers.length > 4 && <p className="text-gray-400">+{techUsers.length - 4} autres...</p>}
+          {techUsers.length > 6 && <p className="text-gray-400">+{techUsers.length - 6} autres...</p>}
         </div>
       </div>
     </div>
   );
 }
 
-// === FILTER DATA FOR TECH ===
-function filterDataForTech(data, techName) {
-  const aliases = TECH_ALIASES[techName] || [techName];
+// === FILTER DATA FOR TECH (utilise les aliases) ===
+function filterDataForTech(data, user) {
+  const aliases = user.aliases || [];
+  
   const matchesTech = (name) => {
     if (!name) return false;
-    return aliases.some(alias => name.toLowerCase().includes(alias.toLowerCase()));
+    const n = name.toLowerCase().trim();
+    return aliases.some(alias => {
+      const a = alias.toLowerCase().trim();
+      return n === a || n.includes(a) || a.includes(n);
+    });
   };
 
   const filtered = { orange: {}, canal: {} };
@@ -158,7 +243,6 @@ function filterDataForTech(data, techName) {
         records: techRecords,
         totalRecords: techRecords.length,
         totalMontant: techRecords.reduce((s, r) => s + (r.montant || 0), 0),
-        byTech: { [techName]: techRecords },
       };
     }
   });
@@ -172,8 +256,8 @@ function filterDataForTech(data, techName) {
       filtered.canal[periode] = {
         records: techRecords,
         totalRecords: techRecords.length,
-        totalMontant: techRecords.reduce((s, r) => s + (r.montant || 0), 0),
-        byTech: { [techName]: techRecords },
+        totalMontantGset: techRecords.reduce((s, r) => s + (r.montantGset || 0), 0),
+        totalMontantTech: techRecords.reduce((s, r) => s + (r.montantTech || 0), 0),
       };
     }
   });
@@ -184,44 +268,59 @@ function filterDataForTech(data, techName) {
 // === DIRECTION DASHBOARD ===
 function DirectionDashboard({ data }) {
   const settings = getSettings();
+  const users = getUsers();
   const coefOrange = settings.coefficients.orange;
-  const coefCanal = settings.coefficients.canal;
 
   const orangeTotal = Object.values(data.orange).reduce((s, d) => s + (d.totalMontant || 0), 0);
-  const canalTotal = Object.values(data.canal).reduce((s, d) => s + (d.totalMontant || 0), 0);
   const orangeRecords = Object.values(data.orange).reduce((s, d) => s + (d.totalRecords || 0), 0);
+  const orangeTechPay = orangeTotal * coefOrange;
+
+  const canalTotalGset = Object.values(data.canal).reduce((s, d) => s + (d.totalMontantGset || 0), 0);
+  const canalTotalTech = Object.values(data.canal).reduce((s, d) => s + (d.totalMontantTech || 0), 0);
   const canalRecords = Object.values(data.canal).reduce((s, d) => s + (d.totalRecords || 0), 0);
-  const totalST = orangeTotal + canalTotal;
-  
-  // Montant payé aux techs
-  const totalTechPay = (orangeTotal * coefOrange) + (canalTotal * coefCanal);
-  // Marge GSET
+
+  const totalST = orangeTotal + canalTotalGset;
+  const totalTechPay = orangeTechPay + canalTotalTech;
   const margeGSET = totalST - totalTechPay;
 
+  // Agréger par USER via aliases
   const techData = {};
+  const aliasToUser = {};
+  Object.entries(users).forEach(([username, u]) => {
+    if (u.role === 'tech' && u.aliases) {
+      u.aliases.forEach(alias => {
+        aliasToUser[alias.toLowerCase()] = username;
+      });
+    }
+  });
+
   Object.values(data.orange).forEach(d => {
     Object.entries(d.byTech || {}).forEach(([tech, records]) => {
-      if (!techData[tech]) techData[tech] = { orange: 0, canal: 0, count: 0 };
-      techData[tech].orange += records.reduce((s, r) => s + r.montant, 0);
-      techData[tech].count += records.length;
-    });
-  });
-  Object.values(data.canal).forEach(d => {
-    Object.entries(d.byTech || {}).forEach(([tech, records]) => {
-      if (!techData[tech]) techData[tech] = { orange: 0, canal: 0, count: 0 };
-      techData[tech].canal += records.reduce((s, r) => s + r.montant, 0);
-      techData[tech].count += records.length;
+      const username = aliasToUser[tech.toLowerCase()] || tech;
+      const displayName = users[username]?.name || resolveGSEToName(tech);
+      
+      if (!techData[displayName]) techData[displayName] = { orange: 0, orangeTech: 0, canalGset: 0, canalTech: 0, count: 0 };
+      const sum = records.reduce((s, r) => s + r.montant, 0);
+      techData[displayName].orange += sum;
+      techData[displayName].orangeTech += sum * coefOrange;
+      techData[displayName].count += records.length;
     });
   });
 
-  const chartTechData = Object.entries(techData)
-    .map(([name, d]) => ({ 
-      name, 
-      stOrange: d.orange,
-      stCanal: d.canal,
-      techPay: (d.orange * coefOrange) + (d.canal * coefCanal),
-      total: d.orange + d.canal 
-    }))
+  Object.values(data.canal).forEach(d => {
+    Object.entries(d.byTech || {}).forEach(([tech, records]) => {
+      const username = aliasToUser[tech.toLowerCase()] || tech;
+      const displayName = users[username]?.name || resolveGSEToName(tech);
+      
+      if (!techData[displayName]) techData[displayName] = { orange: 0, orangeTech: 0, canalGset: 0, canalTech: 0, count: 0 };
+      techData[displayName].canalGset += records.reduce((s, r) => s + (r.montantGset || 0), 0);
+      techData[displayName].canalTech += records.reduce((s, r) => s + (r.montantTech || 0), 0);
+      techData[displayName].count += records.length;
+    });
+  });
+
+  const chartData = Object.entries(techData)
+    .map(([name, d]) => ({ name, orange: d.orange, canal: d.canalGset, total: d.orange + d.canalGset }))
     .sort((a, b) => b.total - a.total)
     .slice(0, 10);
 
@@ -232,38 +331,34 @@ function DirectionDashboard({ data }) {
 
   return (
     <div className="space-y-6">
-      {/* Stats */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
-        <StatCard icon={Euro} label="Total ST Facturé" value={totalST.toLocaleString('fr-FR') + '€'} color="teal" />
-        <StatCard icon={TrendingUp} label="Orange ST" value={orangeTotal.toLocaleString('fr-FR') + '€'} sub={`${orangeRecords} interv.`} color="orange" />
-        <StatCard icon={PieChart} label="Canal+ ST" value={canalTotal.toLocaleString('fr-FR') + '€'} sub={`${canalRecords} interv.`} color="purple" />
-        <StatCard icon={Users} label="À payer Techs" value={totalTechPay.toLocaleString('fr-FR') + '€'} sub={`${Object.keys(techData).length} techs`} color="blue" />
-        <StatCard icon={BarChart3} label="Marge GSET" value={margeGSET.toLocaleString('fr-FR') + '€'} sub={`${((margeGSET/totalST)*100 || 0).toFixed(0)}%`} color="green" />
+        <StatCard icon={Euro} label="Total Facturé" value={totalST.toLocaleString('fr-FR') + '€'} color="teal" />
+        <StatCard icon={TrendingUp} label="Orange" value={orangeTotal.toLocaleString('fr-FR') + '€'} sub={`${orangeRecords} interv.`} color="orange" />
+        <StatCard icon={PieChart} label="Canal+" value={canalTotalGset.toLocaleString('fr-FR') + '€'} sub={`${canalRecords} interv.`} color="purple" />
+        <StatCard icon={User} label="À payer Techs" value={totalTechPay.toLocaleString('fr-FR') + '€'} color="blue" />
+        <StatCard icon={BarChart3} label="Marge GSET" value={margeGSET.toLocaleString('fr-FR') + '€'} sub={totalST > 0 ? `${((margeGSET/totalST)*100).toFixed(0)}%` : ''} color="green" />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Bar chart */}
         <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
-          <h3 className="font-semibold text-gray-800 mb-4">Production par Technicien (Montant ST)</h3>
-          {chartTechData.length > 0 ? (
+          <h3 className="font-semibold text-gray-800 mb-4">Production par Technicien</h3>
+          {chartData.length > 0 ? (
             <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={chartTechData} layout="vertical">
+              <BarChart data={chartData} layout="vertical">
                 <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
                 <XAxis type="number" tickFormatter={v => v.toLocaleString()} />
-                <YAxis type="category" dataKey="name" width={130} tick={{ fontSize: 11 }} />
+                <YAxis type="category" dataKey="name" width={120} tick={{ fontSize: 10 }} />
                 <Tooltip formatter={v => v.toLocaleString('fr-FR') + '€'} />
-                <Legend />
-                <Bar dataKey="stOrange" stackId="a" fill="#f97316" name="Orange ST" />
-                <Bar dataKey="stCanal" stackId="a" fill="#8b5cf6" name="Canal+ ST" />
+                <Bar dataKey="orange" stackId="a" fill="#f97316" name="Orange" />
+                <Bar dataKey="canal" stackId="a" fill="#8b5cf6" name="Canal+" />
               </BarChart>
             </ResponsiveContainer>
           ) : <EmptyState text="Importez des données" />}
         </div>
 
-        {/* Pie chart marge */}
         <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
-          <h3 className="font-semibold text-gray-800 mb-4">Répartition Marge / Paiement Techs</h3>
-          {pieData.length > 0 ? (
+          <h3 className="font-semibold text-gray-800 mb-4">Répartition Marge / Techs</h3>
+          {pieData.length > 0 && pieData[0].value > 0 ? (
             <ResponsiveContainer width="100%" height={300}>
               <RePieChart>
                 <Pie data={pieData} cx="50%" cy="50%" innerRadius={60} outerRadius={100} dataKey="value"
@@ -278,39 +373,36 @@ function DirectionDashboard({ data }) {
         </div>
       </div>
 
-      {/* Table techs */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
         <div className="p-4 border-b border-gray-100 bg-gray-50">
-          <h3 className="font-semibold text-gray-800">Récapitulatif Équipe D3</h3>
-          <p className="text-xs text-gray-500 mt-1">Coef Orange: {(coefOrange*100).toFixed(0)}% | Coef Canal+: {(coefCanal*100).toFixed(0)}%</p>
+          <h3 className="font-semibold text-gray-800">Récapitulatif Équipe (Données fusionnées)</h3>
         </div>
         <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead className="bg-gray-50 text-xs">
+          <table className="w-full text-sm">
+            <thead className="bg-gray-50">
               <tr>
-                <th className="px-4 py-3 text-left font-medium text-gray-500 uppercase">Technicien</th>
-                <th className="px-4 py-3 text-right font-medium text-gray-500 uppercase">Orange ST</th>
-                <th className="px-4 py-3 text-right font-medium text-gray-500 uppercase">Canal+ ST</th>
-                <th className="px-4 py-3 text-right font-medium text-gray-500 uppercase">Total ST</th>
-                <th className="px-4 py-3 text-right font-medium text-gray-500 uppercase">À payer Tech</th>
-                <th className="px-4 py-3 text-right font-medium text-gray-500 uppercase">Marge</th>
+                <th className="px-4 py-3 text-left font-medium text-gray-500 uppercase text-xs">Technicien</th>
+                <th className="px-4 py-3 text-right font-medium text-gray-500 uppercase text-xs">Orange</th>
+                <th className="px-4 py-3 text-right font-medium text-gray-500 uppercase text-xs">Canal+</th>
+                <th className="px-4 py-3 text-right font-medium text-gray-500 uppercase text-xs">Total ST</th>
+                <th className="px-4 py-3 text-right font-medium text-gray-500 uppercase text-xs">Prix Tech</th>
+                <th className="px-4 py-3 text-right font-medium text-gray-500 uppercase text-xs">Marge</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
               {Object.entries(techData)
-                .sort((a, b) => (b[1].orange + b[1].canal) - (a[1].orange + a[1].canal))
+                .sort((a, b) => (b[1].orange + b[1].canalGset) - (a[1].orange + a[1].canalGset))
                 .map(([tech, d]) => {
-                  const totalST = d.orange + d.canal;
-                  const techPay = (d.orange * coefOrange) + (d.canal * coefCanal);
-                  const marge = totalST - techPay;
+                  const total = d.orange + d.canalGset;
+                  const techPay = d.orangeTech + d.canalTech;
                   return (
                     <tr key={tech} className="hover:bg-gray-50">
                       <td className="px-4 py-3 font-medium text-gray-800">{tech}</td>
                       <td className="px-4 py-3 text-right text-orange-600">{d.orange.toLocaleString('fr-FR')}€</td>
-                      <td className="px-4 py-3 text-right text-purple-600">{d.canal.toLocaleString('fr-FR')}€</td>
-                      <td className="px-4 py-3 text-right font-semibold text-gray-700">{totalST.toLocaleString('fr-FR')}€</td>
+                      <td className="px-4 py-3 text-right text-purple-600">{d.canalGset.toLocaleString('fr-FR')}€</td>
+                      <td className="px-4 py-3 text-right text-gray-700">{total.toLocaleString('fr-FR')}€</td>
                       <td className="px-4 py-3 text-right font-semibold text-blue-600">{techPay.toLocaleString('fr-FR')}€</td>
-                      <td className="px-4 py-3 text-right font-semibold text-teal-600">{marge.toLocaleString('fr-FR')}€</td>
+                      <td className="px-4 py-3 text-right font-semibold text-teal-600">{(total - techPay).toLocaleString('fr-FR')}€</td>
                     </tr>
                   );
                 })}
@@ -329,10 +421,12 @@ function DirectionDashboard({ data }) {
 function SettingsPage({ onSave }) {
   const [settings, setSettings] = useState(getSettings());
   const [users, setUsers] = useState(getUsers());
-  const [newUser, setNewUser] = useState({ username: '', password: '', name: '', techName: '' });
+  const [newUser, setNewUser] = useState({ username: '', password: '', name: '' });
+  const [newAlias, setNewAlias] = useState({});
   const [saved, setSaved] = useState(false);
+  const [activeTab, setActiveTab] = useState('techs');
 
-  const handleSaveSettings = () => {
+  const handleSave = () => {
     localStorage.setItem('ftth_settings', JSON.stringify(settings));
     localStorage.setItem('ftth_users', JSON.stringify(users));
     setSaved(true);
@@ -348,166 +442,217 @@ function SettingsPage({ onSave }) {
         password: newUser.password,
         role: 'tech',
         name: newUser.name,
-        techName: newUser.techName || newUser.name
+        aliases: [newUser.name]
       }
     }));
-    setNewUser({ username: '', password: '', name: '', techName: '' });
+    setNewUser({ username: '', password: '', name: '' });
   };
 
   const deleteUser = (username) => {
     if (username === 'admin') return;
-    setUsers(prev => {
-      const copy = { ...prev };
-      delete copy[username];
-      return copy;
-    });
+    setUsers(prev => { const copy = { ...prev }; delete copy[username]; return copy; });
   };
+
+  const addAlias = (username) => {
+    const alias = newAlias[username]?.trim();
+    if (!alias) return;
+    setUsers(prev => ({
+      ...prev,
+      [username]: {
+        ...prev[username],
+        aliases: [...(prev[username].aliases || []), alias]
+      }
+    }));
+    setNewAlias(prev => ({ ...prev, [username]: '' }));
+  };
+
+  const removeAlias = (username, aliasToRemove) => {
+    setUsers(prev => ({
+      ...prev,
+      [username]: {
+        ...prev[username],
+        aliases: (prev[username].aliases || []).filter(a => a !== aliasToRemove)
+      }
+    }));
+  };
+
+  const techUsers = Object.entries(users).filter(([, u]) => u.role === 'tech');
 
   return (
     <div className="space-y-6">
-      {/* Coefficients */}
-      <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
-        <h3 className="font-semibold text-gray-800 mb-4 flex items-center gap-2">
-          <Settings className="w-5 h-5 text-teal-600" />
-          Coefficients Techniciens
-        </h3>
-        <p className="text-sm text-gray-500 mb-4">
-          Pourcentage du montant ST reversé aux techniciens (ex: 0.5 = 50%)
-        </p>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Coefficient Orange</label>
-            <div className="flex items-center gap-2">
-              <input
-                type="number"
-                step="0.05"
-                min="0"
-                max="1"
-                value={settings.coefficients.orange}
-                onChange={(e) => setSettings(s => ({ 
-                  ...s, 
-                  coefficients: { ...s.coefficients, orange: parseFloat(e.target.value) || 0 }
-                }))}
-                className="flex-1 px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-teal-500 outline-none"
-              />
-              <span className="text-gray-500 font-medium">{((settings.coefficients.orange || 0) * 100).toFixed(0)}%</span>
-            </div>
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Coefficient Canal+</label>
-            <div className="flex items-center gap-2">
-              <input
-                type="number"
-                step="0.05"
-                min="0"
-                max="1"
-                value={settings.coefficients.canal}
-                onChange={(e) => setSettings(s => ({ 
-                  ...s, 
-                  coefficients: { ...s.coefficients, canal: parseFloat(e.target.value) || 0 }
-                }))}
-                className="flex-1 px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-teal-500 outline-none"
-              />
-              <span className="text-gray-500 font-medium">{((settings.coefficients.canal || 0) * 100).toFixed(0)}%</span>
-            </div>
-          </div>
-        </div>
+      {/* Tabs */}
+      <div className="flex gap-2 border-b border-gray-200 pb-2">
+        <button onClick={() => setActiveTab('techs')}
+          className={`px-4 py-2 rounded-t-lg font-medium ${activeTab === 'techs' ? 'bg-teal-50 text-teal-700 border-b-2 border-teal-500' : 'text-gray-500'}`}>
+          Techniciens & Fusion
+        </button>
+        <button onClick={() => setActiveTab('coef')}
+          className={`px-4 py-2 rounded-t-lg font-medium ${activeTab === 'coef' ? 'bg-teal-50 text-teal-700 border-b-2 border-teal-500' : 'text-gray-500'}`}>
+          Coefficients
+        </button>
+        <button onClick={() => setActiveTab('prices')}
+          className={`px-4 py-2 rounded-t-lg font-medium ${activeTab === 'prices' ? 'bg-teal-50 text-teal-700 border-b-2 border-teal-500' : 'text-gray-500'}`}>
+          Grille Canal+
+        </button>
       </div>
 
-      {/* Gestion Techniciens */}
-      <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
-        <h3 className="font-semibold text-gray-800 mb-4 flex items-center gap-2">
-          <Users className="w-5 h-5 text-blue-600" />
-          Gestion des Techniciens
-        </h3>
+      {/* Tab: Techniciens & Aliases */}
+      {activeTab === 'techs' && (
+        <div className="space-y-6">
+          <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
+            <h4 className="font-medium text-blue-800 mb-2 flex items-center gap-2">
+              <Link className="w-4 h-4" />
+              Système de Fusion & Aliases
+            </h4>
+            <p className="text-sm text-blue-700">
+              Ajoutez tous les noms/codes liés à un technicien. Toutes les interventions seront fusionnées.
+            </p>
+            <div className="mt-2 text-sm text-blue-600 space-y-1">
+              <p>• <b>Zakaria</b> = "SETTOU Zakaria" (Orange) + "GSE 19" (Canal+)</p>
+              <p>• <b>Jahwer</b> = "GSE 17" + "GSE 03" + "Claude" (gère le planning de Claude)</p>
+            </div>
+          </div>
 
-        {/* Liste existants */}
-        <div className="mb-4 max-h-64 overflow-y-auto">
-          <table className="w-full text-sm">
-            <thead className="bg-gray-50 sticky top-0">
-              <tr>
-                <th className="px-3 py-2 text-left text-xs text-gray-500 uppercase">Login</th>
-                <th className="px-3 py-2 text-left text-xs text-gray-500 uppercase">Nom</th>
-                <th className="px-3 py-2 text-left text-xs text-gray-500 uppercase">Nom Excel</th>
-                <th className="px-3 py-2 text-left text-xs text-gray-500 uppercase">MDP</th>
-                <th className="px-3 py-2 text-center text-xs text-gray-500 uppercase">Action</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100">
-              {Object.entries(users).map(([username, u]) => (
-                <tr key={username} className={u.role === 'dir' ? 'bg-purple-50' : ''}>
-                  <td className="px-3 py-2 font-mono text-gray-800">{username}</td>
-                  <td className="px-3 py-2 text-gray-700">{u.name}</td>
-                  <td className="px-3 py-2 text-gray-500 text-xs">{u.techName || '-'}</td>
-                  <td className="px-3 py-2 text-gray-400 font-mono text-xs">{u.password}</td>
-                  <td className="px-3 py-2 text-center">
-                    {u.role !== 'dir' && (
-                      <button onClick={() => deleteUser(username)} className="text-red-400 hover:text-red-600">
-                        <Trash2 className="w-4 h-4" />
+          <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+            <div className="p-4 border-b border-gray-100 bg-gray-50">
+              <h3 className="font-semibold text-gray-800">Techniciens & Aliases</h3>
+            </div>
+            <div className="divide-y divide-gray-100 max-h-96 overflow-y-auto">
+              {techUsers.map(([username, u]) => (
+                <div key={username} className="p-4">
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 bg-teal-100 rounded-full flex items-center justify-center">
+                        <User className="w-5 h-5 text-teal-600" />
+                      </div>
+                      <div>
+                        <p className="font-medium text-gray-800">{u.name}</p>
+                        <p className="text-xs text-gray-500">
+                          Login: <span className="font-mono">{username}</span> • MDP: <span className="font-mono">{u.password}</span>
+                        </p>
+                      </div>
+                    </div>
+                    <button onClick={() => deleteUser(username)} className="p-2 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg">
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                  
+                  <div className="ml-13 pl-10">
+                    <p className="text-xs text-gray-500 mb-2 flex items-center gap-1">
+                      <Link className="w-3 h-3" /> Aliases fusionnés (noms Orange, codes GSE Canal+, autres plannings)
+                    </p>
+                    <div className="flex flex-wrap gap-2 mb-2">
+                      {(u.aliases || []).map((alias, i) => (
+                        <span key={i} className="inline-flex items-center gap-1 px-2 py-1 bg-gray-100 rounded-lg text-sm">
+                          <span className={alias.startsWith('GSE') ? 'font-mono text-purple-600' : 'text-gray-700'}>
+                            {alias}
+                          </span>
+                          <button onClick={() => removeAlias(username, alias)} className="text-gray-400 hover:text-red-500">
+                            <X className="w-3 h-3" />
+                          </button>
+                        </span>
+                      ))}
+                      {(u.aliases || []).length === 0 && <span className="text-xs text-gray-400 italic">Aucun alias</span>}
+                    </div>
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        placeholder="Ajouter (ex: GSE 19, SETTOU Zakaria, Claude...)"
+                        value={newAlias[username] || ''}
+                        onChange={(e) => setNewAlias(prev => ({ ...prev, [username]: e.target.value }))}
+                        onKeyPress={(e) => e.key === 'Enter' && addAlias(username)}
+                        className="flex-1 px-3 py-1.5 border border-gray-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-teal-500"
+                      />
+                      <button onClick={() => addAlias(username)}
+                        className="px-3 py-1.5 bg-teal-500 text-white rounded-lg text-sm hover:bg-teal-600">
+                        <Plus className="w-4 h-4" />
                       </button>
-                    )}
-                  </td>
-                </tr>
+                    </div>
+                  </div>
+                </div>
               ))}
-            </tbody>
-          </table>
-        </div>
+            </div>
 
-        {/* Ajouter nouveau */}
-        <div className="border-t border-gray-200 pt-4">
-          <p className="text-sm font-medium text-gray-700 mb-2">Ajouter un technicien</p>
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
-            <input
-              type="text"
-              placeholder="Login"
-              value={newUser.username}
-              onChange={(e) => setNewUser(u => ({ ...u, username: e.target.value }))}
-              className="px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-teal-500"
-            />
-            <input
-              type="text"
-              placeholder="Mot de passe"
-              value={newUser.password}
-              onChange={(e) => setNewUser(u => ({ ...u, password: e.target.value }))}
-              className="px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-teal-500"
-            />
-            <input
-              type="text"
-              placeholder="Nom complet"
-              value={newUser.name}
-              onChange={(e) => setNewUser(u => ({ ...u, name: e.target.value }))}
-              className="px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-teal-500"
-            />
-            <input
-              type="text"
-              placeholder="Nom dans Excel"
-              value={newUser.techName}
-              onChange={(e) => setNewUser(u => ({ ...u, techName: e.target.value }))}
-              className="px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-teal-500"
-            />
-            <button
-              onClick={addUser}
-              className="px-4 py-2 bg-teal-500 text-white rounded-lg text-sm font-medium hover:bg-teal-600 flex items-center justify-center gap-1"
-            >
-              <Plus className="w-4 h-4" /> Ajouter
-            </button>
+            <div className="p-4 bg-gray-50 border-t border-gray-200">
+              <p className="text-sm font-medium text-gray-700 mb-2">Ajouter un technicien</p>
+              <div className="flex gap-2">
+                <input type="text" placeholder="Login" value={newUser.username}
+                  onChange={(e) => setNewUser(u => ({ ...u, username: e.target.value }))}
+                  className="flex-1 px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-teal-500" />
+                <input type="text" placeholder="Mot de passe" value={newUser.password}
+                  onChange={(e) => setNewUser(u => ({ ...u, password: e.target.value }))}
+                  className="flex-1 px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-teal-500" />
+                <input type="text" placeholder="Nom complet" value={newUser.name}
+                  onChange={(e) => setNewUser(u => ({ ...u, name: e.target.value }))}
+                  className="flex-1 px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-teal-500" />
+                <button onClick={addUser}
+                  className="px-4 py-2 bg-teal-500 text-white rounded-lg text-sm font-medium hover:bg-teal-600 flex items-center gap-1">
+                  <Plus className="w-4 h-4" /> Ajouter
+                </button>
+              </div>
+            </div>
           </div>
-          <p className="text-xs text-gray-400 mt-2">
-            "Nom dans Excel" = nom exact tel qu'il apparaît dans les fichiers RCC/GST (ex: "SETTOU Zakaria")
-          </p>
-        </div>
-      </div>
 
-      {/* Bouton sauvegarder */}
+          <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
+            <h4 className="font-medium text-gray-800 mb-3">Codes GSE de référence</h4>
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-2 text-sm">
+              {Object.entries(GSE_NAMES).map(([code, name]) => (
+                <div key={code} className="flex items-center gap-2 px-2 py-1 bg-gray-50 rounded">
+                  <span className="font-mono text-purple-600 text-xs">{code}</span>
+                  <span className="text-gray-700 text-xs truncate">{name}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {activeTab === 'coef' && (
+        <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
+          <h3 className="font-semibold text-gray-800 mb-4">Coefficient Orange</h3>
+          <p className="text-sm text-gray-500 mb-4">% du montant ST reversé aux techniciens (Canal+ = prix fixes)</p>
+          <div className="max-w-xs flex items-center gap-2">
+            <input type="number" step="0.05" min="0" max="1" value={settings.coefficients.orange}
+              onChange={(e) => setSettings(s => ({ ...s, coefficients: { ...s.coefficients, orange: parseFloat(e.target.value) || 0 }}))}
+              className="flex-1 px-4 py-2 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-teal-500" />
+            <span className="text-gray-500 font-medium w-16">{((settings.coefficients.orange || 0) * 100).toFixed(0)}%</span>
+          </div>
+        </div>
+      )}
+
+      {activeTab === 'prices' && (
+        <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
+          <h3 className="font-semibold text-gray-800 mb-4">Grille Tarifaire Canal+</h3>
+          <div className="overflow-x-auto max-h-80">
+            <table className="w-full text-sm">
+              <thead className="bg-gray-50 sticky top-0">
+                <tr>
+                  <th className="px-3 py-2 text-left text-xs text-gray-500 uppercase">Code</th>
+                  <th className="px-3 py-2 text-right text-xs text-gray-500 uppercase">Prix GSET</th>
+                  <th className="px-3 py-2 text-right text-xs text-gray-500 uppercase">Prix Tech</th>
+                  <th className="px-3 py-2 text-right text-xs text-gray-500 uppercase">Marge</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {Object.entries(CANAL_PRICES).map(([code, prices]) => (
+                  <tr key={code} className="hover:bg-gray-50">
+                    <td className="px-3 py-2 font-mono font-medium text-gray-800">{code}</td>
+                    <td className="px-3 py-2 text-right text-teal-600">{prices.gset.toFixed(2)}€</td>
+                    <td className="px-3 py-2 text-right text-blue-600">{prices.tech.toFixed(2)}€</td>
+                    <td className="px-3 py-2 text-right text-green-600">{(prices.gset - prices.tech).toFixed(2)}€</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
       <div className="flex justify-end">
-        <button
-          onClick={handleSaveSettings}
-          className={`px-6 py-3 rounded-xl font-semibold flex items-center gap-2 transition-colors ${
-            saved ? 'bg-green-500 text-white' : 'bg-teal-500 text-white hover:bg-teal-600'
-          }`}
-        >
+        <button onClick={handleSave}
+          className={`px-6 py-3 rounded-xl font-semibold flex items-center gap-2 ${saved ? 'bg-green-500 text-white' : 'bg-teal-500 text-white hover:bg-teal-600'}`}>
           <Save className="w-5 h-5" />
-          {saved ? 'Sauvegardé !' : 'Sauvegarder les paramètres'}
+          {saved ? 'Sauvegardé !' : 'Sauvegarder'}
         </button>
       </div>
     </div>
@@ -518,46 +663,35 @@ function SettingsPage({ onSave }) {
 function TechDashboard({ data, user }) {
   const settings = getSettings();
   const coefOrange = settings.coefficients.orange;
-  const coefCanal = settings.coefficients.canal;
-  
-  const techName = user.techName;
-  const filteredData = filterDataForTech(data, techName);
+  const filteredData = filterDataForTech(data, user);
   
   const orangeTotalST = Object.values(filteredData.orange).reduce((s, d) => s + (d.totalMontant || 0), 0);
-  const canalTotalST = Object.values(filteredData.canal).reduce((s, d) => s + (d.totalMontant || 0), 0);
+  const orangeTotal = orangeTotalST * coefOrange;
   const orangeCount = Object.values(filteredData.orange).reduce((s, d) => s + (d.totalRecords || 0), 0);
+
+  const canalTotal = Object.values(filteredData.canal).reduce((s, d) => s + (d.totalMontantTech || 0), 0);
   const canalCount = Object.values(filteredData.canal).reduce((s, d) => s + (d.totalRecords || 0), 0);
-  
-  // Montants tech (après coefficient)
-  const orangeTech = orangeTotalST * coefOrange;
-  const canalTech = canalTotalST * coefCanal;
-  const totalTech = orangeTech + canalTech;
+
+  const total = orangeTotal + canalTotal;
   const totalCount = orangeCount + canalCount;
 
-  // Déductions du tech
-  const [deductions, setDeductions] = useState(() => getTechDeductions(techName));
-  const totalDeductions = Object.values(deductions).reduce((s, v) => s + (parseFloat(v) || 0), 0);
-  const netAPayer = totalTech - totalDeductions;
-
-  // Interventions
   const allInterventions = [];
   Object.values(filteredData.orange).forEach(d => {
-    (d.records || []).forEach(r => allInterventions.push({ ...r, source: 'orange' }));
+    (d.records || []).forEach(r => allInterventions.push({ ...r, source: 'orange', prixTech: (r.montant || 0) * coefOrange }));
   });
   Object.values(filteredData.canal).forEach(d => {
-    (d.records || []).forEach(r => allInterventions.push({ ...r, source: 'canal' }));
+    (d.records || []).forEach(r => allInterventions.push({ ...r, source: 'canal', prixTech: r.montantTech || 0 }));
   });
 
   const periodes = [...new Set([...Object.keys(filteredData.orange), ...Object.keys(filteredData.canal)])].sort();
   const evolutionData = periodes.map(p => ({
     name: p,
     orange: (filteredData.orange[p]?.totalMontant || 0) * coefOrange,
-    canal: (filteredData.canal[p]?.totalMontant || 0) * coefCanal
+    canal: filteredData.canal[p]?.totalMontantTech || 0
   }));
 
   return (
     <div className="space-y-6">
-      {/* Header */}
       <div className="bg-gradient-to-r from-teal-500 to-teal-600 rounded-xl p-6 text-white">
         <div className="flex items-center gap-4">
           <div className="w-16 h-16 bg-white/20 rounded-full flex items-center justify-center">
@@ -565,20 +699,18 @@ function TechDashboard({ data, user }) {
           </div>
           <div>
             <h2 className="text-2xl font-bold">{user.name}</h2>
-            <p className="text-teal-100">Mon récapitulatif personnel</p>
+            <p className="text-teal-100">Mon récapitulatif</p>
           </div>
         </div>
       </div>
 
-      {/* Stats */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <StatCard icon={Euro} label="Ma Production" value={totalTech.toLocaleString('fr-FR') + '€'} color="teal" />
-        <StatCard icon={TrendingUp} label="Orange" value={orangeTech.toLocaleString('fr-FR') + '€'} sub={`${orangeCount} interv.`} color="orange" />
-        <StatCard icon={PieChart} label="Canal+" value={canalTech.toLocaleString('fr-FR') + '€'} sub={`${canalCount} interv.`} color="purple" />
+        <StatCard icon={Euro} label="Total à recevoir" value={total.toLocaleString('fr-FR') + '€'} color="teal" />
+        <StatCard icon={TrendingUp} label="Orange" value={orangeTotal.toLocaleString('fr-FR') + '€'} sub={`${orangeCount} interv.`} color="orange" />
+        <StatCard icon={PieChart} label="Canal+" value={canalTotal.toLocaleString('fr-FR') + '€'} sub={`${canalCount} interv.`} color="purple" />
         <StatCard icon={Calendar} label="Interventions" value={totalCount} color="blue" />
       </div>
 
-      {/* Graphique */}
       {evolutionData.length > 0 && (
         <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
           <h3 className="font-semibold text-gray-800 mb-4">Mon évolution</h3>
@@ -588,7 +720,6 @@ function TechDashboard({ data, user }) {
               <XAxis dataKey="name" />
               <YAxis tickFormatter={v => v.toLocaleString()} />
               <Tooltip formatter={v => v.toLocaleString('fr-FR') + '€'} />
-              <Legend />
               <Bar dataKey="orange" fill="#f97316" name="Orange" />
               <Bar dataKey="canal" fill="#8b5cf6" name="Canal+" />
             </BarChart>
@@ -596,40 +727,36 @@ function TechDashboard({ data, user }) {
         </div>
       )}
 
-      {/* Interventions */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
         <div className="p-4 border-b border-gray-100 bg-gray-50 flex justify-between">
           <h3 className="font-semibold text-gray-800">Mes Interventions</h3>
           <span className="text-sm text-gray-500">{allInterventions.length} total</span>
         </div>
-        <div className="overflow-x-auto max-h-64">
+        <div className="overflow-x-auto max-h-72">
           <table className="w-full text-sm">
             <thead className="bg-gray-50 sticky top-0">
               <tr>
                 <th className="px-3 py-2 text-left text-xs text-gray-500 uppercase">Source</th>
-                <th className="px-3 py-2 text-left text-xs text-gray-500 uppercase">Réf</th>
+                <th className="px-3 py-2 text-left text-xs text-gray-500 uppercase">Référence</th>
                 <th className="px-3 py-2 text-left text-xs text-gray-500 uppercase">Type</th>
-                <th className="px-3 py-2 text-right text-xs text-gray-500 uppercase">Montant</th>
+                <th className="px-3 py-2 text-right text-xs text-gray-500 uppercase">Prix Tech</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {allInterventions.slice(0, 30).map((inter, i) => {
-                const coef = inter.source === 'orange' ? coefOrange : coefCanal;
-                return (
-                  <tr key={i} className="hover:bg-gray-50">
-                    <td className="px-3 py-2">
-                      <span className={`px-2 py-0.5 text-xs rounded-full font-medium ${
-                        inter.source === 'orange' ? 'bg-orange-100 text-orange-700' : 'bg-purple-100 text-purple-700'
-                      }`}>{inter.source === 'orange' ? 'Orange' : 'Canal+'}</span>
-                    </td>
-                    <td className="px-3 py-2 font-mono text-gray-700">{inter.nd || inter.refPxo || '-'}</td>
-                    <td className="px-3 py-2 text-gray-600">{inter.articles || inter.facturation || '-'}</td>
-                    <td className="px-3 py-2 text-right font-medium text-teal-600">
-                      {((inter.montant || 0) * coef).toLocaleString('fr-FR')}€
-                    </td>
-                  </tr>
-                );
-              })}
+              {allInterventions.slice(0, 50).map((inter, i) => (
+                <tr key={i} className="hover:bg-gray-50">
+                  <td className="px-3 py-2">
+                    <span className={`px-2 py-0.5 text-xs rounded-full font-medium ${
+                      inter.source === 'orange' ? 'bg-orange-100 text-orange-700' : 'bg-purple-100 text-purple-700'
+                    }`}>{inter.source === 'orange' ? 'Orange' : 'Canal+'}</span>
+                  </td>
+                  <td className="px-3 py-2 font-mono text-gray-700">{inter.nd || inter.refPxo || '-'}</td>
+                  <td className="px-3 py-2 text-gray-600">{inter.articles || inter.facturation || '-'}</td>
+                  <td className="px-3 py-2 text-right font-semibold text-teal-600">
+                    {(inter.prixTech || 0).toLocaleString('fr-FR')}€
+                  </td>
+                </tr>
+              ))}
               {allInterventions.length === 0 && (
                 <tr><td colSpan={4} className="px-3 py-8 text-center text-gray-500">Aucune intervention</td></tr>
               )}
@@ -638,29 +765,20 @@ function TechDashboard({ data, user }) {
         </div>
       </div>
 
-      {/* Récap à payer */}
       <div className="bg-gradient-to-r from-green-50 to-teal-50 rounded-xl p-6 border border-green-200">
-        <h3 className="font-semibold text-gray-800 mb-4">Mon Récapitulatif À Payer</h3>
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
-          <div className="bg-white rounded-lg p-3">
-            <p className="text-xs text-gray-500">Orange ({(coefOrange*100).toFixed(0)}%)</p>
-            <p className="text-lg font-bold text-orange-600">{orangeTech.toLocaleString('fr-FR')}€</p>
+        <h3 className="font-semibold text-gray-800 mb-4">Récapitulatif</h3>
+        <div className="grid grid-cols-3 gap-4">
+          <div className="bg-white rounded-lg p-4 text-center">
+            <p className="text-sm text-gray-500 mb-1">Orange</p>
+            <p className="text-xl font-bold text-orange-600">{orangeTotal.toLocaleString('fr-FR')}€</p>
           </div>
-          <div className="bg-white rounded-lg p-3">
-            <p className="text-xs text-gray-500">Canal+ ({(coefCanal*100).toFixed(0)}%)</p>
-            <p className="text-lg font-bold text-purple-600">{canalTech.toLocaleString('fr-FR')}€</p>
+          <div className="bg-white rounded-lg p-4 text-center">
+            <p className="text-sm text-gray-500 mb-1">Canal+</p>
+            <p className="text-xl font-bold text-purple-600">{canalTotal.toLocaleString('fr-FR')}€</p>
           </div>
-          <div className="bg-white rounded-lg p-3">
-            <p className="text-xs text-gray-500">Total Brut</p>
-            <p className="text-lg font-bold text-gray-800">{totalTech.toLocaleString('fr-FR')}€</p>
-          </div>
-          <div className="bg-white rounded-lg p-3">
-            <p className="text-xs text-gray-500">Déductions</p>
-            <p className="text-lg font-bold text-red-500">-{totalDeductions.toLocaleString('fr-FR')}€</p>
-          </div>
-          <div className="bg-white rounded-lg p-3 border-2 border-green-400">
-            <p className="text-xs text-green-600 font-medium">NET À PAYER</p>
-            <p className="text-xl font-bold text-green-600">{netAPayer.toLocaleString('fr-FR')}€</p>
+          <div className="bg-white rounded-lg p-4 text-center border-2 border-green-400">
+            <p className="text-sm text-green-600 font-medium mb-1">TOTAL À RECEVOIR</p>
+            <p className="text-2xl font-bold text-green-600">{total.toLocaleString('fr-FR')}€</p>
           </div>
         </div>
       </div>
@@ -704,13 +822,9 @@ function Dashboard({ user, onLogout }) {
 
         <nav className="flex-1 p-4 space-y-2">
           {navItems.map(item => (
-            <button
-              key={item.id}
-              onClick={() => setView(item.id)}
+            <button key={item.id} onClick={() => setView(item.id)}
               className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-colors ${
-                view === item.id ? 'bg-teal-50 text-teal-700' : 'text-gray-600 hover:bg-gray-50'
-              }`}
-            >
+                view === item.id ? 'bg-teal-50 text-teal-700' : 'text-gray-600 hover:bg-gray-50'}`}>
               <item.icon className="w-5 h-5 flex-shrink-0" />
               {sidebarOpen && <span className="font-medium">{item.label}</span>}
             </button>
@@ -740,9 +854,7 @@ function Dashboard({ user, onLogout }) {
             <button onClick={() => setSidebarOpen(!sidebarOpen)} className="p-2 hover:bg-gray-100 rounded-lg">
               {sidebarOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
             </button>
-            <h2 className="text-xl font-semibold text-gray-800">
-              {navItems.find(n => n.id === view)?.label || 'Dashboard'}
-            </h2>
+            <h2 className="text-xl font-semibold text-gray-800">{navItems.find(n => n.id === view)?.label}</h2>
           </div>
           <span className={`px-3 py-1 text-xs rounded-full font-medium ${
             isDirection ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'
@@ -773,19 +885,11 @@ function Dashboard({ user, onLogout }) {
 
 // === SHARED ===
 function StatCard({ icon: Icon, label, value, sub, color }) {
-  const colors = {
-    teal: 'bg-teal-50 text-teal-600',
-    orange: 'bg-orange-50 text-orange-600',
-    purple: 'bg-purple-50 text-purple-600',
-    blue: 'bg-blue-50 text-blue-600',
-    green: 'bg-green-50 text-green-600'
-  };
+  const colors = { teal: 'bg-teal-50 text-teal-600', orange: 'bg-orange-50 text-orange-600', purple: 'bg-purple-50 text-purple-600', blue: 'bg-blue-50 text-blue-600', green: 'bg-green-50 text-green-600' };
   return (
     <div className="bg-white rounded-xl p-5 shadow-sm border border-gray-100">
       <div className="flex items-center gap-3 mb-2">
-        <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${colors[color]}`}>
-          <Icon className="w-5 h-5" />
-        </div>
+        <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${colors[color]}`}><Icon className="w-5 h-5" /></div>
         <span className="text-sm text-gray-500">{label}</span>
       </div>
       <p className="text-2xl font-bold text-gray-800">{value}</p>
