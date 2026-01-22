@@ -313,3 +313,103 @@ export async function getAvailableTechNames() {
     return [];
   }
 }
+
+// ========== DAILY TRACKING (SUIVI JOURNALIER) ==========
+
+export async function getDailyTracking(filters = {}) {
+  try {
+    let query = supabase.from('daily_tracking').select('*');
+    
+    if (filters.technicien) query = query.eq('technicien', filters.technicien);
+    if (filters.type) query = query.eq('type', filters.type);
+    if (filters.dateFrom) query = query.gte('date', filters.dateFrom);
+    if (filters.dateTo) query = query.lte('date', filters.dateTo);
+    if (filters.periode) query = query.eq('periode', filters.periode);
+    
+    const { data, error } = await query.order('date', { ascending: false });
+    if (error && !isAbortError(error)) {
+      console.error('Error fetching daily tracking:', error);
+      return [];
+    }
+    return data || [];
+  } catch (err) {
+    if (isAbortError(err)) return [];
+    console.error('Error fetching daily tracking:', err);
+    return [];
+  }
+}
+
+export async function insertDailyTracking(records) {
+  // Utilise upsert pour éviter les doublons
+  const { data, error } = await supabase
+    .from('daily_tracking')
+    .upsert(records, { 
+      onConflict: 'technicien,date,type',
+      ignoreDuplicates: false 
+    })
+    .select();
+  if (error) throw error;
+  return data;
+}
+
+export async function deleteDailyTrackingByPeriode(periode) {
+  const { error } = await supabase
+    .from('daily_tracking')
+    .delete()
+    .eq('periode', periode);
+  if (error) throw error;
+}
+
+export async function getDailyImports() {
+  try {
+    const { data, error } = await supabase
+      .from('daily_imports')
+      .select('*')
+      .order('created_at', { ascending: false });
+    if (error && !isAbortError(error)) {
+      console.error('Error fetching daily imports:', error);
+      return [];
+    }
+    return data || [];
+  } catch (err) {
+    if (isAbortError(err)) return [];
+    console.error('Error fetching daily imports:', err);
+    return [];
+  }
+}
+
+export async function createDailyImport(importData) {
+  const { data, error } = await supabase
+    .from('daily_imports')
+    .insert(importData)
+    .select()
+    .single();
+  if (error) throw error;
+  return data;
+}
+
+export async function deleteDailyImport(id, periode) {
+  // Supprimer d'abord les données associées
+  await deleteDailyTrackingByPeriode(periode);
+  // Puis supprimer l'import
+  const { error } = await supabase
+    .from('daily_imports')
+    .delete()
+    .eq('id', id);
+  if (error) throw error;
+}
+
+export async function getDailyTrackingTechniciens() {
+  try {
+    const { data, error } = await supabase
+      .from('daily_tracking')
+      .select('technicien')
+      .order('technicien');
+    if (error && !isAbortError(error)) return [];
+    const unique = [...new Set((data || []).map(d => d.technicien))];
+    return unique.sort();
+  } catch (err) {
+    if (isAbortError(err)) return [];
+    return [];
+  }
+}
