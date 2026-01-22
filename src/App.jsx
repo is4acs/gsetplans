@@ -1228,11 +1228,17 @@ export default function App() {
     let isMounted = true;
     let initialCheckDone = false;
 
+    // Helper: Check if error is abort (should be ignored)
+    const isAbortError = (err) => {
+      if (!err) return false;
+      const msg = err.message || err.toString();
+      return msg.includes('abort') || msg.includes('AbortError') || msg.includes('signal') || err.name === 'AbortError';
+    };
+
     // Check URL for recovery token FIRST
     const checkRecoveryUrl = () => {
       const hash = window.location.hash;
       const search = window.location.search;
-      // Supabase recovery URLs contain access_token and type=recovery in hash
       if (hash.includes('type=recovery') || hash.includes('access_token') || search.includes('type=recovery')) {
         return true;
       }
@@ -1241,10 +1247,16 @@ export default function App() {
 
     const initAuth = async () => {
       try {
+        // Small delay to avoid race conditions on mount
+        await new Promise(r => setTimeout(r, 100));
+        if (!isMounted) return;
+        
         // Check DB first
         const { error: testError } = await supabase.from('profiles').select('id').limit(1);
+        if (!isMounted) return;
+        
         if (testError && (testError.code === '42P01' || testError.message?.includes('relation'))) {
-          if (isMounted) { setDbConfigured(false); setDbError(testError.message); setLoading(false); }
+          setDbConfigured(false); setDbError(testError.message); setLoading(false);
           return;
         }
         
@@ -1263,15 +1275,30 @@ export default function App() {
         }
         
         if (sess?.user) {
-          try { const prof = await getProfile(sess.user.id); if (isMounted) setProfile(prof); } 
-          catch (err) { console.error('Error fetching profile:', err); }
+          try { 
+            const prof = await getProfile(sess.user.id); 
+            if (isMounted) setProfile(prof); 
+          } catch (err) { 
+            if (!isAbortError(err)) console.error('Error fetching profile:', err); 
+          }
         }
       } catch (err) {
-        console.error('Auth init error:', err);
         if (!isMounted) return;
-        if (err.message?.includes('relation') || err.code === '42P01') { setDbConfigured(false); setDbError(err.message); }
-        else setError(err.message);
-      } finally { if (isMounted) { setLoading(false); initialCheckDone = true; } }
+        if (isAbortError(err)) {
+          // Abort errors are normal during hot reload, just retry
+          console.log('Init aborted, retrying...');
+          setTimeout(() => { if (isMounted) initAuth(); }, 500);
+          return;
+        }
+        console.error('Auth init error:', err);
+        if (err.message?.includes('relation') || err.code === '42P01') { 
+          setDbConfigured(false); setDbError(err.message); 
+        } else {
+          setError(err.message);
+        }
+      } finally { 
+        if (isMounted) { setLoading(false); initialCheckDone = true; } 
+      }
     };
     
     initAuth();
@@ -1282,7 +1309,12 @@ export default function App() {
       if (event === 'PASSWORD_RECOVERY') { setShowResetPassword(true); return; }
       setSession(prev => prev?.user?.id === sess?.user?.id ? prev : sess);
       if (sess?.user && event === 'SIGNED_IN') {
-        try { const prof = await getProfile(sess.user.id); if (isMounted) setProfile(prof); } catch (err) { console.error(err); }
+        try { 
+          const prof = await getProfile(sess.user.id); 
+          if (isMounted) setProfile(prof); 
+        } catch (err) { 
+          if (!isAbortError(err)) console.error(err); 
+        }
       } else if (event === 'SIGNED_OUT' && isMounted) setProfile(null);
     });
 
