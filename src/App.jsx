@@ -111,7 +111,7 @@ function LoadingSpinner({ size = 'md' }) {
   return <Loader2 className={`${sizes[size]} animate-spin text-emerald-500`} />;
 }
 
-// === RESET PASSWORD PAGE ===
+// === RESET PASSWORD PAGE (Modern style like Google/Apple) ===
 function ResetPasswordPage({ onComplete }) {
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -119,6 +119,20 @@ function ResetPasswordPage({ onComplete }) {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
+
+  // Password strength
+  const strength = useMemo(() => {
+    if (!newPassword) return { score: 0, label: '', color: 'bg-gray-200' };
+    let score = 0;
+    if (newPassword.length >= 6) score++;
+    if (newPassword.length >= 8) score++;
+    if (/[A-Z]/.test(newPassword)) score++;
+    if (/[0-9]/.test(newPassword)) score++;
+    if (/[^A-Za-z0-9]/.test(newPassword)) score++;
+    if (score <= 2) return { score, label: 'Faible', color: 'bg-red-500' };
+    if (score <= 3) return { score, label: 'Moyen', color: 'bg-yellow-500' };
+    return { score, label: 'Fort', color: 'bg-emerald-500' };
+  }, [newPassword]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -129,60 +143,82 @@ function ResetPasswordPage({ onComplete }) {
     try {
       await updatePassword(newPassword);
       setSuccess(true);
-      setTimeout(() => onComplete?.(), 2000);
+      window.history.replaceState(null, '', window.location.pathname);
+      setTimeout(() => onComplete?.(), 1500);
     } catch (err) { setError(err.message); } finally { setLoading(false); }
   };
 
   if (success) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-100 to-gray-200 p-4">
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-emerald-50 via-white to-teal-50 p-4">
         <div className="w-full max-w-md bg-white rounded-3xl shadow-2xl p-8 text-center">
-          <div className="w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-4">
-            <Check className="w-8 h-8 text-emerald-600" />
+          <div className="w-20 h-20 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-6">
+            <Check className="w-10 h-10 text-emerald-600" />
           </div>
-          <h2 className="text-xl font-bold text-gray-900 mb-2">Mot de passe mis à jour !</h2>
-          <p className="text-gray-500">Redirection en cours...</p>
+          <h2 className="text-2xl font-bold text-gray-900 mb-2">Mot de passe mis à jour !</h2>
+          <p className="text-gray-500 mb-4">Connexion en cours...</p>
+          <LoadingSpinner size="sm" />
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-100 to-gray-200 p-4">
-      <div className="w-full max-w-md bg-white rounded-3xl shadow-2xl overflow-hidden">
-        <div className="p-8 bg-gradient-to-br from-emerald-500 to-teal-600">
-          <div className="flex items-center gap-3">
-            <div className="w-12 h-12 bg-white/20 backdrop-blur rounded-2xl flex items-center justify-center">
-              <KeyRound className="w-6 h-6 text-white" />
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-emerald-50 via-white to-teal-50 p-4">
+      <div className="w-full max-w-md">
+        <div className="text-center mb-8">
+          <div className="w-16 h-16 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg">
+            <Zap className="w-8 h-8 text-white" />
+          </div>
+          <h1 className="text-2xl font-bold text-gray-900">GSET PLANS</h1>
+        </div>
+        <div className="bg-white rounded-3xl shadow-2xl overflow-hidden">
+          <div className="p-8">
+            <div className="flex items-center gap-3 mb-6">
+              <div className="w-12 h-12 bg-emerald-100 rounded-xl flex items-center justify-center">
+                <KeyRound className="w-6 h-6 text-emerald-600" />
+              </div>
+              <div>
+                <h2 className="text-xl font-bold text-gray-900">Créer votre mot de passe</h2>
+                <p className="text-sm text-gray-500">Choisissez un mot de passe sécurisé</p>
+              </div>
             </div>
-            <div>
-              <h1 className="text-2xl font-bold text-white">Nouveau mot de passe</h1>
-              <p className="text-emerald-100 text-sm">Définissez votre nouveau mot de passe</p>
-            </div>
+            <form onSubmit={handleSubmit} className="space-y-5">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Nouveau mot de passe</label>
+                <div className="relative">
+                  <input type={showPassword ? 'text' : 'password'} value={newPassword} onChange={(e) => { setNewPassword(e.target.value); setError(''); }}
+                    className="w-full px-4 py-3.5 pr-12 rounded-xl border bg-gray-50 border-gray-200 focus:border-emerald-500 focus:bg-white outline-none transition-all" placeholder="••••••••" required autoFocus />
+                  <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 p-1">
+                    {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                  </button>
+                </div>
+                {newPassword && (
+                  <div className="mt-2 flex items-center gap-2">
+                    <div className="flex-1 h-1.5 bg-gray-200 rounded-full overflow-hidden">
+                      <div className={`h-full ${strength.color} transition-all`} style={{ width: `${(strength.score / 5) * 100}%` }} />
+                    </div>
+                    <span className={`text-xs font-medium ${strength.score <= 2 ? 'text-red-500' : strength.score <= 3 ? 'text-yellow-500' : 'text-emerald-500'}`}>{strength.label}</span>
+                  </div>
+                )}
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Confirmer le mot de passe</label>
+                <input type={showPassword ? 'text' : 'password'} value={confirmPassword} onChange={(e) => { setConfirmPassword(e.target.value); setError(''); }}
+                  className={`w-full px-4 py-3.5 rounded-xl border bg-gray-50 focus:bg-white outline-none transition-all ${confirmPassword && confirmPassword !== newPassword ? 'border-red-300' : confirmPassword && confirmPassword === newPassword ? 'border-emerald-300' : 'border-gray-200 focus:border-emerald-500'}`} placeholder="••••••••" required />
+                {confirmPassword && confirmPassword === newPassword && <p className="mt-1 text-xs text-emerald-600 flex items-center gap-1"><Check className="w-3 h-3" /> Mots de passe identiques</p>}
+              </div>
+              {error && <div className="p-3 bg-red-50 border border-red-200 rounded-xl flex items-center gap-2"><AlertCircle className="w-4 h-4 text-red-500" /><p className="text-red-600 text-sm">{error}</p></div>}
+              <button type="submit" disabled={loading || !newPassword || !confirmPassword}
+                className="w-full bg-gradient-to-r from-emerald-500 to-teal-600 text-white py-4 rounded-xl font-semibold hover:from-emerald-600 hover:to-teal-700 shadow-lg shadow-emerald-500/25 disabled:opacity-50 flex items-center justify-center gap-2 transition-all">
+                {loading ? <><LoadingSpinner size="sm" /> Mise à jour...</> : 'Créer mon mot de passe'}
+              </button>
+            </form>
+          </div>
+          <div className="px-8 py-4 bg-gray-50 border-t border-gray-100">
+            <p className="text-xs text-gray-500 text-center">Utilisez au moins 6 caractères avec des lettres et des chiffres.</p>
           </div>
         </div>
-        <form onSubmit={handleSubmit} className="p-8 space-y-5">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Nouveau mot de passe</label>
-            <div className="relative">
-              <input type={showPassword ? 'text' : 'password'} value={newPassword} onChange={(e) => setNewPassword(e.target.value)}
-                className="w-full px-4 py-3 pr-12 rounded-xl border bg-gray-50 border-gray-200 focus:border-emerald-500 outline-none" placeholder="••••••••" required />
-              <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
-                {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-              </button>
-            </div>
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Confirmer le mot de passe</label>
-            <input type={showPassword ? 'text' : 'password'} value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)}
-              className="w-full px-4 py-3 rounded-xl border bg-gray-50 border-gray-200 focus:border-emerald-500 outline-none" placeholder="••••••••" required />
-          </div>
-          {error && <div className="p-3 bg-red-50 border border-red-200 rounded-xl"><p className="text-red-600 text-sm">{error}</p></div>}
-          <button type="submit" disabled={loading}
-            className="w-full bg-gradient-to-r from-emerald-500 to-teal-600 text-white py-3.5 rounded-xl font-semibold hover:from-emerald-600 hover:to-teal-700 shadow-lg disabled:opacity-50 flex items-center justify-center gap-2">
-            {loading && <LoadingSpinner size="sm" />} Mettre à jour
-          </button>
-        </form>
       </div>
     </div>
   );
@@ -670,12 +706,19 @@ function FileImportSection({ orangePrices, canalPrices, onImportComplete }) {
         await insertOrangeInterventions(interventions);
         await createImport({ type: 'orange', periode, filename: selectedFile.name, total_records: interventions.length, total_montant: interventions.reduce((s, i) => s + i.montant_st, 0) });
       } else {
+        // Canal+ with Travaux supplémentaires support
+        const extractCodes = (str) => str ? String(str).match(/[A-Z]{2,}[A-Z0-9]*/gi)?.map(m => m.toUpperCase()) || [] : [];
         const interventions = json.map(row => {
-          const date = parseExcelDate(row['Date Realisation'] || row['date_realisation'] || row['Date']);
-          const facturation = row['Facturation'] || row['facturation'] || row['Code'] || '';
-          const price = canalPrices.find(p => p.code === facturation);
-          return { periode, tech: row['GSE'] || row['gse'] || row['Tech'] || '', tech_name: row['Nom Technicien'] || row['nom_technicien'] || '', ref_pxo: row['Ref PXO'] || row['ref_pxo'] || '', facturation, agence: row['Agence'] || row['agence'] || '', montant_gset: price?.gset_price || 0, montant_tech: price?.tech_price || 0, intervention_date: date ? date.toISOString().split('T')[0] : null, week_number: date ? getWeekNumber(date) : null, month: date ? date.getMonth() + 1 : null, year: date ? date.getFullYear() : null };
-        }).filter(i => i.tech);
+          const date = parseExcelDate(row['Date Realisation'] || row['date_realisation'] || row['Date'] || row['DATE SOLDE']);
+          const mainCode = (row['Facturation'] || row['facturation'] || row['Code'] || '').toUpperCase();
+          const travauxSupp = row['Travaux supplémentaires'] || row['travaux_supplementaires'] || row['Travaux Supplementaires'] || '';
+          const suppCodes = extractCodes(travauxSupp);
+          const mainPrice = canalPrices.find(p => p.code === mainCode);
+          let totalGset = mainPrice?.gset_price || 0, totalTech = mainPrice?.tech_price || 0;
+          suppCodes.forEach(code => { const p = canalPrices.find(pr => pr.code === code); if (p) { totalGset += p.gset_price; totalTech += p.tech_price; } });
+          const allCodes = mainCode ? (suppCodes.length ? `${mainCode} + ${suppCodes.join(' + ')}` : mainCode) : suppCodes.join(' + ');
+          return { periode, tech: row['GSE'] || row['gse'] || row['Tech'] || row['TECHNICIEN'] || '', tech_name: row['Nom Technicien'] || row['nom_technicien'] || '', ref_pxo: row['Ref PXO'] || row['ref_pxo'] || row['Ref_PXO'] || '', facturation: allCodes, agence: row['Agence'] || row['agence'] || '', montant_gset: totalGset, montant_tech: totalTech, intervention_date: date ? date.toISOString().split('T')[0] : null, week_number: date ? getWeekNumber(date) : null, month: date ? date.getMonth() + 1 : null, year: date ? date.getFullYear() : null };
+        }).filter(i => i.tech && (i.montant_gset > 0 || i.montant_tech > 0));
         await insertCanalInterventions(interventions);
         await createImport({ type: 'canal', periode, filename: selectedFile.name, total_records: interventions.length, total_montant: interventions.reduce((s, i) => s + i.montant_gset, 0) });
       }
@@ -1069,7 +1112,7 @@ function MainDashboard() {
                     <StatCard icon={TrendingUp} label="Orange" value={`${orangeTotalGset.toLocaleString('fr-FR')}€`} sub={`${filteredOrange.length} interv.`} color="orange" />
                     <StatCard icon={PieChart} label="Canal+" value={`${canalTotalGset.toLocaleString('fr-FR')}€`} sub={`${filteredCanal.length} interv.`} color="purple" />
                     <StatCard icon={User} label="À payer" value={`${totalTech.toLocaleString('fr-FR')}€`} color="blue" />
-                    <StatCard icon={BarChart3} label="Marge GSET" value={`${marge.toLocaleString('fr-FR')}€`} sub={totalST > 0 ? `${((marge/totalST)*100).toFixed(0)}%` : ''} color="teal" />
+                    <StatCard icon={BarChart3} label="Marge GSET" value={`${marge.toLocaleString('fr-FR')}€`} color="teal" />
                   </div>
                   <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                     <TechRankingChart orangeInterventions={filteredOrange} canalInterventions={filteredCanal} orangePrices={orangePrices} />
@@ -1121,21 +1164,39 @@ export default function App() {
     let isMounted = true;
     let initialCheckDone = false;
 
+    // Check URL for recovery token FIRST
+    const checkRecoveryUrl = () => {
+      const hash = window.location.hash;
+      const search = window.location.search;
+      // Supabase recovery URLs contain access_token and type=recovery in hash
+      if (hash.includes('type=recovery') || hash.includes('access_token') || search.includes('type=recovery')) {
+        return true;
+      }
+      return false;
+    };
+
     const initAuth = async () => {
       try {
+        // Check DB first
         const { error: testError } = await supabase.from('profiles').select('id').limit(1);
         if (testError && (testError.code === '42P01' || testError.message?.includes('relation'))) {
           if (isMounted) { setDbConfigured(false); setDbError(testError.message); setLoading(false); }
           return;
         }
         
+        // Check for password recovery URL BEFORE getting session
+        const isRecovery = checkRecoveryUrl();
+        
         const sess = await getSession();
         if (!isMounted) return;
         setSession(sess);
         
-        // Check for password recovery
-        const hashParams = new URLSearchParams(window.location.hash.substring(1));
-        if (hashParams.get('type') === 'recovery') { setShowResetPassword(true); setLoading(false); return; }
+        // If recovery URL detected, show reset page
+        if (isRecovery && sess) {
+          setShowResetPassword(true);
+          setLoading(false);
+          return;
+        }
         
         if (sess?.user) {
           try { const prof = await getProfile(sess.user.id); if (isMounted) setProfile(prof); } 
@@ -1152,6 +1213,7 @@ export default function App() {
     initAuth();
 
     const { data: { subscription } } = onAuthStateChange(async (event, sess) => {
+      console.log('Auth event:', event);
       if (event === 'INITIAL_SESSION' || !isMounted || !initialCheckDone) return;
       if (event === 'PASSWORD_RECOVERY') { setShowResetPassword(true); return; }
       setSession(prev => prev?.user?.id === sess?.user?.id ? prev : sess);
@@ -1166,7 +1228,16 @@ export default function App() {
   useEffect(() => { document.documentElement.classList.toggle('dark', theme === 'dark'); }, [theme]);
 
   const handleSignOut = async () => { try { await signOut(); setSession(null); setProfile(null); } catch (err) { console.error(err); } };
-  const handleResetComplete = () => { setShowResetPassword(false); window.history.replaceState(null, '', window.location.pathname); };
+  const handleResetComplete = async () => { 
+    setShowResetPassword(false); 
+    window.history.replaceState(null, '', window.location.pathname);
+    // Refresh session after password change
+    const sess = await getSession();
+    setSession(sess);
+    if (sess?.user) {
+      try { const prof = await getProfile(sess.user.id); setProfile(prof); } catch (e) { console.error(e); }
+    }
+  };
   const toggleAmounts = () => setShowAmounts(prev => !prev);
 
   if (loading) return <div className="min-h-screen flex items-center justify-center bg-gray-50"><LoadingSpinner size="lg" /></div>;
