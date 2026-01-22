@@ -1,37 +1,43 @@
 {
-  "hash": "0cf44568",
+  "hash": "4f399fd5",
   "configHash": "33092d1e",
-  "lockfileHash": "836cd6f2",
-  "browserHash": "2092cc84",
+  "lockfileHash": "bb7c052c",
+  "browserHash": "6f3db891",
   "optimized": {
     "react": {
       "src": "../../node_modules/react/index.js",
       "file": "react.js",
-      "fileHash": "f9127efb",
+      "fileHash": "ccc21631",
       "needsInterop": true
     },
     "react-dom/client": {
       "src": "../../node_modules/react-dom/client.js",
       "file": "react-dom_client.js",
-      "fileHash": "85c70454",
+      "fileHash": "eb255330",
       "needsInterop": true
     },
     "lucide-react": {
       "src": "../../node_modules/lucide-react/dist/esm/lucide-react.mjs",
       "file": "lucide-react.js",
-      "fileHash": "9f70381e",
+      "fileHash": "7a3af468",
       "needsInterop": false
     },
     "recharts": {
       "src": "../../node_modules/recharts/es6/index.js",
       "file": "recharts.js",
-      "fileHash": "d693a152",
+      "fileHash": "837e6b28",
       "needsInterop": false
     },
     "xlsx": {
       "src": "../../node_modules/xlsx/xlsx.mjs",
       "file": "xlsx.js",
-      "fileHash": "36d49284",
+      "fileHash": "feba35f6",
+      "needsInterop": false
+    },
+    "@supabase/supabase-js": {
+      "src": "../../node_modules/@supabase/supabase-js/dist/index.mjs",
+      "file": "@supabase_supabase-js.js",
+      "fileHash": "3a9ad84b",
       "needsInterop": false
     }
   },

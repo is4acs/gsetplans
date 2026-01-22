@@ -1,76 +1,128 @@
-# Getting Started with Create React App
+# GSET PLANS - FTTH D3 Guyane
 
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+Dashboard de gestion des interventions FTTH pour GSET Caraïbes.
 
-## Available Scripts
+## 🚀 Installation
 
-In the project directory, you can run:
+### 1. Créer un projet Supabase
 
-### `npm start`
+1. Allez sur [supabase.com](https://supabase.com) et créez un compte
+2. Créez un nouveau projet
+3. Notez l'URL du projet et la clé `anon` (Settings > API)
 
-Runs the app in the development mode.\
-Open [http://localhost:3000](http://localhost:3000) to view it in your browser.
+### 2. Configurer la base de données
 
-The page will reload when you make changes.\
-You may also see any lint errors in the console.
+1. Dans Supabase, allez dans **SQL Editor**
+2. Copiez le contenu de `supabase-schema.sql` et exécutez-le
+3. Cela créera toutes les tables et insérera les prix par défaut
 
-### `npm test`
+### 3. Configurer l'authentification
 
-Launches the test runner in the interactive watch mode.\
-See the section about [running tests](https://facebook.github.io/create-react-app/docs/running-tests) for more information.
+Dans Supabase Dashboard:
+1. **Authentication > Settings > Email**
+   - Activez "Enable Email Confirmations"
+   - Configurez les templates d'email si souhaité
 
-### `npm run build`
+2. **Authentication > URL Configuration**
+   - Site URL: `http://localhost:5173` (dev) ou votre domaine de production
+   - Redirect URLs: Ajoutez `http://localhost:5173/*`
 
-Builds the app for production to the `build` folder.\
-It correctly bundles React in production mode and optimizes the build for the best performance.
+### 4. Créer le premier admin
 
-The build is minified and the filenames include the hashes.\
-Your app is ready to be deployed!
+1. Allez dans **Authentication > Users**
+2. Cliquez sur "Add user" > "Create new user"
+3. Entrez l'email admin et un mot de passe
+4. Cochez "Auto Confirm User"
+5. Allez dans **SQL Editor** et exécutez:
+```sql
+UPDATE public.profiles 
+SET role = 'dir' 
+WHERE email = 'votre-email-admin@exemple.com';
+```
 
-See the section about [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
+### 5. Configurer l'application
 
-### `npm run eject`
+```bash
+# Cloner et installer
+cd ftth-dashboard
+npm install
 
-**Note: this is a one-way operation. Once you `eject`, you can't go back!**
+# Créer le fichier .env
+cp .env.example .env
 
-If you aren't satisfied with the build tool and configuration choices, you can `eject` at any time. This command will remove the single build dependency from your project.
+# Éditer .env avec vos identifiants Supabase
+VITE_SUPABASE_URL=https://votre-projet.supabase.co
+VITE_SUPABASE_ANON_KEY=votre-clé-anon
 
-Instead, it will copy all the configuration files and the transitive dependencies (webpack, Babel, ESLint, etc) right into your project so you have full control over them. All of the commands except `eject` will still work, but they will point to the copied scripts so you can tweak them. At this point you're on your own.
+# Lancer l'application
+npm run dev
+```
 
-You don't have to ever use `eject`. The curated feature set is suitable for small and middle deployments, and you shouldn't feel obligated to use this feature. However we understand that this tool wouldn't be useful if you couldn't customize it when you are ready for it.
+## 📱 Utilisation
 
-## Learn More
+### Connexion Admin
+1. Connectez-vous avec l'email admin créé
+2. Vous avez accès à:
+   - **Dashboard**: Vue d'ensemble des interventions
+   - **Import**: Importer des fichiers Excel
+   - **Comptes**: Créer des comptes techniciens
+   - **Grilles**: Modifier les tarifs Orange/Canal+
 
-You can learn more in the [Create React App documentation](https://facebook.github.io/create-react-app/docs/getting-started).
+### Créer un technicien
+1. Allez dans **Comptes**
+2. Remplissez: identifiant, nom, email
+3. Cliquez **Créer**
+4. Le technicien recevra un email pour définir son mot de passe
 
-To learn React, check out the [React documentation](https://reactjs.org/).
+### Première connexion technicien
+1. Le technicien clique sur **"Mot de passe oublié"**
+2. Entre son email
+3. Reçoit un email avec un lien
+4. Définit son mot de passe
 
-### Code Splitting
+### Import de fichiers
+Formats supportés:
+- **Orange RCC**: Fichiers avec feuilles "Récap" et "Détails"
+- **Canal+ Power BI**: Export avec codes GSE
+- **Canal+ GST**: Export avec noms directs
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/code-splitting](https://facebook.github.io/create-react-app/docs/code-splitting)
+## 📊 Grilles tarifaires
 
-### Analyzing the Bundle Size
+### Orange (22 codes)
+```
+LSIM1-3, LSOU1-3, LSA1-3, ETCFO, ETCFO1
+PLP1-3, SAVA1-3, PSER1-3, SANR, PLPS
+```
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size](https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size)
+### Canal+ (17 codes)
+```
+AERC, BPMS, CHRC, FARC, INRC, PBEA, PBEC
+PBEF, PBIS, PDOS, SAVD, SAVS, SAVG
+TXPA, TXPB, TXPC, TXPD
+```
 
-### Making a Progressive Web App
+## 🔧 Structure de la base de données
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app](https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app)
+| Table | Description |
+|-------|-------------|
+| `profiles` | Utilisateurs (extension de auth.users) |
+| `orange_prices` | Grille tarifaire Orange |
+| `canal_prices` | Grille tarifaire Canal+ |
+| `orange_interventions` | Interventions Orange |
+| `canal_interventions` | Interventions Canal+ |
+| `imports` | Historique des imports |
 
-### Advanced Configuration
+## 🛠 Technologies
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/advanced-configuration](https://facebook.github.io/create-react-app/docs/advanced-configuration)
+- **Frontend**: React 18, Vite, Tailwind CSS
+- **Backend**: Supabase (PostgreSQL + Auth)
+- **Charts**: Recharts
+- **Icons**: Lucide React
+- **Excel**: SheetJS (xlsx)
 
-### Deployment
+## 📝 Notes
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/deployment](https://facebook.github.io/create-react-app/docs/deployment)
-
-### `npm run build` fails to minify
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify](https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify)
-# gsetplans
-# gsetplans
-# gsetplans
-# gsetplans
-# gsetplans
-# gsetplans
+- Les prix sont stockés en base de données et modifiables
+- L'authentification utilise Supabase Auth avec email/password
+- Row Level Security (RLS) protège les données
+- Les techniciens ne voient que leurs interventions

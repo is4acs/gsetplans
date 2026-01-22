@@ -1,13 +1,14 @@
 import { createClient } from '@supabase/supabase-js';
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || ' https://wwaflcfflbzfuqmxstbz.supabase.co';
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Ind3YWZsY2ZmbGJ6ZnVxbXhzdGJ6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjkwMjk1NjcsImV4cCI6MjA4NDYwNTU2N30.NFBfqMdATmOt8YnDg0JcXkV8Y4AwN87dlX8wtN70V2Y';
 
-if (!supabaseUrl || !supabaseAnonKey) {
-  console.error('Missing Supabase environment variables');
-}
+export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
-export const supabase = createClient(supabaseUrl || '', supabaseAnonKey || '');
+// Check if Supabase is configured
+export const isSupabaseConfigured = () => {
+  return supabaseUrl && supabaseAnonKey && supabaseUrl.includes('supabase.co');
+};
 
 // ========== AUTH FUNCTIONS ==========
 
@@ -24,7 +25,7 @@ export async function signOut() {
 
 export async function resetPassword(email) {
   const { error } = await supabase.auth.resetPasswordForEmail(email, {
-    redirectTo: `${window.location.origin}/reset-password`,
+    redirectTo: `${window.location.origin}/`,
   });
   if (error) throw error;
 }
@@ -32,33 +33,6 @@ export async function resetPassword(email) {
 export async function updatePassword(newPassword) {
   const { error } = await supabase.auth.updateUser({ password: newPassword });
   if (error) throw error;
-}
-
-export async function createUser(email, password, metadata) {
-  // Admin creates user with Supabase Admin API (requires service role key)
-  // For now, we use signUp which sends confirmation email
-  const { data, error } = await supabase.auth.signUp({
-    email,
-    password,
-    options: {
-      data: metadata, // { username, name, role }
-    }
-  });
-  if (error) throw error;
-  return data;
-}
-
-export async function inviteUser(email, metadata) {
-  // Use Supabase invite (sends magic link)
-  const { data, error } = await supabase.auth.admin?.inviteUserByEmail(email, {
-    data: metadata,
-  });
-  // If admin API not available, fall back to regular signup with random password
-  if (error) {
-    const tempPassword = Math.random().toString(36).slice(-12);
-    return createUser(email, tempPassword, metadata);
-  }
-  return data;
 }
 
 export function onAuthStateChange(callback) {
@@ -82,26 +56,6 @@ export async function getProfile(userId) {
     .from('profiles')
     .select('*')
     .eq('id', userId)
-    .single();
-  if (error) throw error;
-  return data;
-}
-
-export async function getProfileByEmail(email) {
-  const { data, error } = await supabase
-    .from('profiles')
-    .select('*')
-    .eq('email', email)
-    .single();
-  if (error && error.code !== 'PGRST116') throw error;
-  return data;
-}
-
-export async function getProfileByUsername(username) {
-  const { data, error } = await supabase
-    .from('profiles')
-    .select('*')
-    .eq('username', username.toLowerCase())
     .single();
   if (error && error.code !== 'PGRST116') throw error;
   return data;
@@ -127,19 +81,6 @@ export async function updateProfile(userId, updates) {
   return data;
 }
 
-export async function deleteProfile(userId) {
-  // This will cascade delete the auth user too
-  const { error } = await supabase.auth.admin?.deleteUser(userId);
-  if (error) {
-    // Fallback: just delete profile
-    const { error: profileError } = await supabase
-      .from('profiles')
-      .delete()
-      .eq('id', userId);
-    if (profileError) throw profileError;
-  }
-}
-
 // ========== PRICES ==========
 
 export async function getOrangePrices() {
@@ -147,7 +88,10 @@ export async function getOrangePrices() {
     .from('orange_prices')
     .select('*')
     .order('code');
-  if (error) throw error;
+  if (error) {
+    console.error('Error fetching orange prices:', error);
+    return [];
+  }
   return data || [];
 }
 
@@ -171,7 +115,10 @@ export async function getCanalPrices() {
     .from('canal_prices')
     .select('*')
     .order('code');
-  if (error) throw error;
+  if (error) {
+    console.error('Error fetching canal prices:', error);
+    return [];
+  }
   return data || [];
 }
 
@@ -202,7 +149,10 @@ export async function getOrangeInterventions(filters = {}) {
   if (filters.week) query = query.eq('week_number', filters.week);
   
   const { data, error } = await query.order('intervention_date', { ascending: false });
-  if (error) throw error;
+  if (error) {
+    console.error('Error fetching orange interventions:', error);
+    return [];
+  }
   return data || [];
 }
 
@@ -233,7 +183,10 @@ export async function getCanalInterventions(filters = {}) {
   if (filters.week) query = query.eq('week_number', filters.week);
   
   const { data, error } = await query.order('intervention_date', { ascending: false });
-  if (error) throw error;
+  if (error) {
+    console.error('Error fetching canal interventions:', error);
+    return [];
+  }
   return data || [];
 }
 
@@ -261,7 +214,10 @@ export async function getImports() {
     .from('imports')
     .select('*')
     .order('created_at', { ascending: false });
-  if (error) throw error;
+  if (error) {
+    console.error('Error fetching imports:', error);
+    return [];
+  }
   return data || [];
 }
 
@@ -276,14 +232,12 @@ export async function createImport(importData) {
 }
 
 export async function deleteImport(id, type, periode) {
-  // Delete interventions first
   if (type === 'orange') {
     await deleteOrangeInterventionsByPeriode(periode);
   } else {
     await deleteCanalInterventionsByPeriode(periode);
   }
   
-  // Delete import record
   const { error } = await supabase
     .from('imports')
     .delete()
@@ -294,51 +248,61 @@ export async function deleteImport(id, type, periode) {
 // ========== STATS ==========
 
 export async function getAvailablePeriods() {
-  const [orangeResult, canalResult] = await Promise.all([
-    supabase.from('orange_interventions').select('year, month, week_number'),
-    supabase.from('canal_interventions').select('year, month, week_number'),
-  ]);
-  
-  const allRecords = [...(orangeResult.data || []), ...(canalResult.data || [])];
-  
-  const years = new Set();
-  const monthsByYear = {};
-  const weeksByYearMonth = {};
-  
-  allRecords.forEach(r => {
-    if (r.year && r.month) {
-      years.add(r.year);
-      if (!monthsByYear[r.year]) monthsByYear[r.year] = new Set();
-      monthsByYear[r.year].add(r.month);
-      
-      if (r.week_number) {
-        const key = `${r.year}_${r.month}`;
-        if (!weeksByYearMonth[key]) weeksByYearMonth[key] = new Set();
-        weeksByYearMonth[key].add(r.week_number);
+  try {
+    const [orangeResult, canalResult] = await Promise.all([
+      supabase.from('orange_interventions').select('year, month, week_number'),
+      supabase.from('canal_interventions').select('year, month, week_number'),
+    ]);
+    
+    const allRecords = [...(orangeResult.data || []), ...(canalResult.data || [])];
+    
+    const years = new Set();
+    const monthsByYear = {};
+    const weeksByYearMonth = {};
+    
+    allRecords.forEach(r => {
+      if (r.year && r.month) {
+        years.add(r.year);
+        if (!monthsByYear[r.year]) monthsByYear[r.year] = new Set();
+        monthsByYear[r.year].add(r.month);
+        
+        if (r.week_number) {
+          const key = `${r.year}_${r.month}`;
+          if (!weeksByYearMonth[key]) weeksByYearMonth[key] = new Set();
+          weeksByYearMonth[key].add(r.week_number);
+        }
       }
-    }
-  });
-  
-  return {
-    years: Array.from(years).sort((a, b) => b - a),
-    monthsByYear: Object.fromEntries(
-      Object.entries(monthsByYear).map(([y, m]) => [y, Array.from(m).sort((a, b) => a - b)])
-    ),
-    weeksByYearMonth: Object.fromEntries(
-      Object.entries(weeksByYearMonth).map(([k, w]) => [k, Array.from(w).sort((a, b) => a - b)])
-    ),
-  };
+    });
+    
+    return {
+      years: Array.from(years).sort((a, b) => b - a),
+      monthsByYear: Object.fromEntries(
+        Object.entries(monthsByYear).map(([y, m]) => [y, Array.from(m).sort((a, b) => a - b)])
+      ),
+      weeksByYearMonth: Object.fromEntries(
+        Object.entries(weeksByYearMonth).map(([k, w]) => [k, Array.from(w).sort((a, b) => a - b)])
+      ),
+    };
+  } catch (error) {
+    console.error('Error fetching periods:', error);
+    return { years: [], monthsByYear: {}, weeksByYearMonth: {} };
+  }
 }
 
 export async function getAvailableTechNames() {
-  const [orangeResult, canalResult] = await Promise.all([
-    supabase.from('orange_interventions').select('tech'),
-    supabase.from('canal_interventions').select('tech'),
-  ]);
-  
-  const names = new Set();
-  (orangeResult.data || []).forEach(r => names.add(r.tech));
-  (canalResult.data || []).forEach(r => names.add(r.tech));
-  
-  return Array.from(names).sort();
+  try {
+    const [orangeResult, canalResult] = await Promise.all([
+      supabase.from('orange_interventions').select('tech'),
+      supabase.from('canal_interventions').select('tech'),
+    ]);
+    
+    const names = new Set();
+    (orangeResult.data || []).forEach(r => names.add(r.tech));
+    (canalResult.data || []).forEach(r => names.add(r.tech));
+    
+    return Array.from(names).sort();
+  } catch (error) {
+    console.error('Error fetching tech names:', error);
+    return [];
+  }
 }

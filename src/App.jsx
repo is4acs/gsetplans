@@ -101,6 +101,226 @@ function LoadingSpinner({ size = 'md' }) {
   return <Loader2 className={`${sizes[size]} animate-spin text-emerald-500`} />;
 }
 
+// === SETUP REQUIRED ===
+function SetupRequired({ errorMessage }) {
+  const [copied, setCopied] = useState(false);
+  
+  const copySQL = () => {
+    const sql = `-- Exécutez ce script dans Supabase SQL Editor
+
+-- 1. Table profiles
+CREATE TABLE IF NOT EXISTS public.profiles (
+  id UUID REFERENCES auth.users(id) ON DELETE CASCADE PRIMARY KEY,
+  username TEXT UNIQUE NOT NULL,
+  name TEXT NOT NULL,
+  email TEXT NOT NULL,
+  role TEXT NOT NULL DEFAULT 'tech',
+  aliases TEXT[] DEFAULT '{}',
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "profiles_select" ON public.profiles FOR SELECT TO authenticated USING (true);
+CREATE POLICY "profiles_insert" ON public.profiles FOR INSERT TO authenticated WITH CHECK (true);
+CREATE POLICY "profiles_update" ON public.profiles FOR UPDATE TO authenticated USING (true);
+CREATE POLICY "profiles_delete" ON public.profiles FOR DELETE TO authenticated USING (true);
+
+-- 2. Orange prices
+CREATE TABLE IF NOT EXISTS public.orange_prices (
+  id SERIAL PRIMARY KEY,
+  code TEXT UNIQUE NOT NULL,
+  gset_price DECIMAL(10,2) NOT NULL,
+  tech_price DECIMAL(10,2) NOT NULL,
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+ALTER TABLE public.orange_prices ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "orange_prices_all" ON public.orange_prices FOR ALL TO authenticated USING (true);
+
+INSERT INTO public.orange_prices (code, gset_price, tech_price) VALUES
+  ('LSIM1', 111.00, 61.05), ('LSIM2', 99.91, 54.95), ('LSIM3', 66.60, 36.63),
+  ('LSOU1', 217.56, 119.66), ('LSOU2', 195.36, 107.45), ('LSOU3', 130.98, 72.04),
+  ('LSA1', 288.60, 158.73), ('LSA2', 259.14, 142.84), ('LSA3', 163.17, 89.74),
+  ('ETCFO', 74.93, 41.21), ('ETCFO1', 74.93, 41.21),
+  ('PLP1', 78.92, 43.86), ('PLP2', 79.92, 43.86), ('PLP3', 80.96, 43.86),
+  ('SAVA1', 73.26, 40.92), ('SAVA2', 65.49, 36.59), ('SAVA3', 44.40, 24.42),
+  ('PSER1', 87.69, 48.23), ('PSER2', 78.81, 43.35), ('PSER3', 52.17, 28.69)
+ON CONFLICT (code) DO NOTHING;
+
+-- 3. Canal prices
+CREATE TABLE IF NOT EXISTS public.canal_prices (
+  id SERIAL PRIMARY KEY,
+  code TEXT UNIQUE NOT NULL,
+  gset_price DECIMAL(10,2) NOT NULL,
+  tech_price DECIMAL(10,2) NOT NULL,
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+ALTER TABLE public.canal_prices ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "canal_prices_all" ON public.canal_prices FOR ALL TO authenticated USING (true);
+
+INSERT INTO public.canal_prices (code, gset_price, tech_price) VALUES
+  ('AERC', 117.45, 70.47), ('BPMS', 84.40, 50.64), ('CHRC', 169.50, 101.70),
+  ('FARC', 156.60, 93.96), ('INRC', 139.26, 83.56), ('PBEA', 288.77, 173.26),
+  ('PBEC', 201.30, 120.78), ('PBEF', 280.15, 168.09), ('PBIS', 176.12, 105.67),
+  ('PDOS', 89.00, 53.40), ('SAVD', 240.00, 144.00), ('SAVS', 73.87, 44.32),
+  ('SAVG', 73.87, 44.32), ('TXPA', 119.00, 71.40), ('TXPB', 178.50, 107.10),
+  ('TXPC', 373.10, 223.86), ('TXPD', 174.20, 104.52)
+ON CONFLICT (code) DO NOTHING;
+
+-- 4. Orange interventions
+CREATE TABLE IF NOT EXISTS public.orange_interventions (
+  id SERIAL PRIMARY KEY,
+  periode TEXT NOT NULL,
+  nd TEXT,
+  tech TEXT NOT NULL,
+  articles TEXT,
+  montant_st DECIMAL(10,2) NOT NULL,
+  intervention_date DATE,
+  week_number INTEGER,
+  month INTEGER,
+  year INTEGER,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+ALTER TABLE public.orange_interventions ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "orange_interventions_all" ON public.orange_interventions FOR ALL TO authenticated USING (true);
+
+-- 5. Canal interventions
+CREATE TABLE IF NOT EXISTS public.canal_interventions (
+  id SERIAL PRIMARY KEY,
+  periode TEXT NOT NULL,
+  tech TEXT NOT NULL,
+  tech_name TEXT,
+  ref_pxo TEXT,
+  facturation TEXT,
+  agence TEXT,
+  montant_gset DECIMAL(10,2) NOT NULL,
+  montant_tech DECIMAL(10,2) NOT NULL,
+  intervention_date DATE,
+  week_number INTEGER,
+  month INTEGER,
+  year INTEGER,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+ALTER TABLE public.canal_interventions ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "canal_interventions_all" ON public.canal_interventions FOR ALL TO authenticated USING (true);
+
+-- 6. Imports
+CREATE TABLE IF NOT EXISTS public.imports (
+  id SERIAL PRIMARY KEY,
+  type TEXT NOT NULL,
+  periode TEXT NOT NULL,
+  filename TEXT,
+  total_records INTEGER DEFAULT 0,
+  total_montant DECIMAL(10,2) DEFAULT 0,
+  imported_by UUID,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+ALTER TABLE public.imports ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "imports_all" ON public.imports FOR ALL TO authenticated USING (true);
+
+-- 7. Trigger pour créer le profil automatiquement
+CREATE OR REPLACE FUNCTION public.handle_new_user()
+RETURNS TRIGGER AS $$
+BEGIN
+  INSERT INTO public.profiles (id, username, name, email, role)
+  VALUES (
+    NEW.id,
+    COALESCE(NEW.raw_user_meta_data->>'username', split_part(NEW.email, '@', 1)),
+    COALESCE(NEW.raw_user_meta_data->>'name', split_part(NEW.email, '@', 1)),
+    NEW.email,
+    COALESCE(NEW.raw_user_meta_data->>'role', 'tech')
+  );
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
+CREATE TRIGGER on_auth_user_created
+  AFTER INSERT ON auth.users
+  FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();`;
+    
+    navigator.clipboard.writeText(sql);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-100 to-gray-200 p-4">
+      <div className="w-full max-w-2xl bg-white rounded-3xl shadow-2xl overflow-hidden">
+        <div className="p-8 bg-gradient-to-br from-emerald-500 to-teal-600">
+          <div className="flex items-center gap-3">
+            <div className="w-12 h-12 bg-white/20 backdrop-blur rounded-2xl flex items-center justify-center">
+              <Zap className="w-6 h-6 text-white" />
+            </div>
+            <div>
+              <h1 className="text-2xl font-bold text-white">GSET PLANS</h1>
+              <p className="text-emerald-100 text-sm">Configuration requise</p>
+            </div>
+          </div>
+        </div>
+        <div className="p-8 space-y-6">
+          <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4">
+            <h3 className="font-semibold text-yellow-800 mb-2">⚠️ Base de données non configurée</h3>
+            <p className="text-yellow-700 text-sm mb-2">
+              Les tables Supabase n'existent pas encore.
+            </p>
+            {errorMessage && (
+              <p className="text-xs text-yellow-600 font-mono bg-yellow-100 p-2 rounded mt-2">
+                {errorMessage}
+              </p>
+            )}
+          </div>
+          
+          <div className="space-y-4">
+            <h3 className="font-semibold text-gray-900">Étapes de configuration :</h3>
+            <ol className="space-y-3 text-sm text-gray-600">
+              <li className="flex items-start gap-3">
+                <span className="w-6 h-6 bg-emerald-100 text-emerald-700 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0">1</span>
+                <span>Copiez le script SQL ci-dessous</span>
+              </li>
+              <li className="flex items-start gap-3">
+                <span className="w-6 h-6 bg-emerald-100 text-emerald-700 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0">2</span>
+                <span>Allez dans <strong>Supabase Dashboard → SQL Editor</strong></span>
+              </li>
+              <li className="flex items-start gap-3">
+                <span className="w-6 h-6 bg-emerald-100 text-emerald-700 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0">3</span>
+                <span>Collez et cliquez sur <strong>Run</strong></span>
+              </li>
+              <li className="flex items-start gap-3">
+                <span className="w-6 h-6 bg-emerald-100 text-emerald-700 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0">4</span>
+                <span>Créez un utilisateur dans <strong>Authentication → Users</strong></span>
+              </li>
+              <li className="flex items-start gap-3">
+                <span className="w-6 h-6 bg-emerald-100 text-emerald-700 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0">5</span>
+                <span>Définissez-le admin : <code className="bg-gray-100 px-1 rounded text-xs">UPDATE profiles SET role='dir' WHERE email='votre@email'</code></span>
+              </li>
+            </ol>
+          </div>
+          
+          <div className="flex gap-3">
+            <button onClick={copySQL} 
+              className={`flex-1 py-3 rounded-xl font-semibold flex items-center justify-center gap-2 ${
+                copied ? 'bg-emerald-500 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              }`}>
+              {copied ? <><Check className="w-5 h-5" /> Copié !</> : 'Copier le script SQL'}
+            </button>
+            <button onClick={() => window.location.reload()} 
+              className="flex-1 py-3 bg-emerald-500 text-white rounded-xl font-semibold hover:bg-emerald-600">
+              Vérifier
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // === LOGIN PAGE ===
 function LoginPage() {
   const [email, setEmail] = useState('');
@@ -1243,24 +1463,57 @@ export default function App() {
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
   const [theme, setTheme] = useState('light');
+  const [error, setError] = useState(null);
+  const [dbConfigured, setDbConfigured] = useState(true);
+  const [dbError, setDbError] = useState(null);
 
   useEffect(() => {
     // Check initial session
-    getSession().then(async (sess) => {
-      setSession(sess);
-      if (sess?.user) {
-        try {
-          const prof = await getProfile(sess.user.id);
-          setProfile(prof);
-        } catch (err) {
-          console.error('Error fetching profile:', err);
+    const initAuth = async () => {
+      try {
+        // First check if database is configured by testing a simple query
+        const { error: testError } = await supabase.from('profiles').select('id').limit(1);
+        if (testError) {
+          console.error('Database test error:', testError);
+          if (testError.code === '42P01' || testError.message?.includes('relation')) {
+            // Table doesn't exist
+            setDbConfigured(false);
+            setDbError(testError.message);
+            setLoading(false);
+            return;
+          }
         }
+        
+        const sess = await getSession();
+        setSession(sess);
+        if (sess?.user) {
+          try {
+            const prof = await getProfile(sess.user.id);
+            setProfile(prof);
+          } catch (err) {
+            console.error('Error fetching profile:', err);
+            // Profile might not exist yet, that's OK
+          }
+        }
+      } catch (err) {
+        console.error('Auth init error:', err);
+        // Check if it's a database not configured error
+        if (err.message?.includes('relation') || err.code === '42P01') {
+          setDbConfigured(false);
+          setDbError(err.message);
+        } else {
+          setError(err.message);
+        }
+      } finally {
+        setLoading(false);
       }
-      setLoading(false);
-    });
+    };
+    
+    initAuth();
 
     // Listen for auth changes
     const { data: { subscription } } = onAuthStateChange(async (event, sess) => {
+      console.log('Auth event:', event);
       setSession(sess);
       if (sess?.user) {
         try {
@@ -1281,10 +1534,42 @@ export default function App() {
     document.documentElement.classList.toggle('dark', theme === 'dark');
   }, [theme]);
 
+  const handleSignOut = async () => {
+    try {
+      await signOut();
+      setSession(null);
+      setProfile(null);
+    } catch (err) {
+      console.error('Sign out error:', err);
+    }
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <LoadingSpinner size="lg" />
+      </div>
+    );
+  }
+
+  if (!dbConfigured) {
+    return <SetupRequired errorMessage={dbError} />;
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
+        <div className="bg-white rounded-2xl shadow-xl p-8 max-w-md w-full text-center">
+          <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+            <AlertCircle className="w-8 h-8 text-red-500" />
+          </div>
+          <h2 className="text-xl font-bold text-gray-900 mb-2">Erreur de connexion</h2>
+          <p className="text-gray-500 mb-4">{error}</p>
+          <button onClick={() => window.location.reload()} 
+            className="px-6 py-3 bg-emerald-500 text-white rounded-xl font-semibold hover:bg-emerald-600">
+            Réessayer
+          </button>
+        </div>
       </div>
     );
   }
@@ -1295,7 +1580,7 @@ export default function App() {
 
   return (
     <ThemeContext.Provider value={{ theme, setTheme }}>
-      <AuthContext.Provider value={{ user: session?.user, profile, signOut }}>
+      <AuthContext.Provider value={{ user: session?.user, profile, signOut: handleSignOut }}>
         <MainDashboard />
       </AuthContext.Provider>
     </ThemeContext.Provider>
