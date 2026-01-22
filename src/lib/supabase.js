@@ -1,10 +1,14 @@
 import { createClient } from '@supabase/supabase-js';
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://wwaflcfflbzfuqmxstbz.supabase.co';
+// ------------------------------------------------------------------
+// CORRECTION FORCEE : On commente la lecture du .env pour l'instant
+// ------------------------------------------------------------------
+// const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '...';
+const supabaseUrl = 'https://wwaflcfflbzfuqmxstbz.supabase.co';
+
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Ind3YWZsY2ZmbGJ6ZnVxbXhzdGJ6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjkwMjk1NjcsImV4cCI6MjA4NDYwNTU2N30.NFBfqMdATmOt8YnDg0JcXkV8Y4AwN87dlX8wtN70V2Y';
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey);
-
 // Check if Supabase is configured
 export const isSupabaseConfigured = () => {
   return supabaseUrl && supabaseAnonKey && supabaseUrl.includes('supabase.co');
