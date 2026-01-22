@@ -681,9 +681,13 @@ function FileImportSection({ orangePrices, canalPrices, onImportComplete }) {
       const workbook = XLSX.read(data);
       const sheet = workbook.Sheets[workbook.SheetNames[0]];
       const json = XLSX.utils.sheet_to_json(sheet, { header: 1 });
-      const headers = json[0]?.map(h => String(h).toLowerCase()) || [];
-      if (headers.some(h => h.includes('nd') || h.includes('article'))) setImportType('orange');
-      else if (headers.some(h => h.includes('ref_pxo') || h.includes('facturation'))) setImportType('canal');
+      const headers = json[0]?.map(h => String(h).toLowerCase().trim()) || [];
+      // Détection Orange: colonnes ND, Articles, Montant ST
+      const isOrange = headers.some(h => h === 'nd' || h.includes('article') || h.includes('montant st'));
+      // Détection Canal+: colonnes Ref PXO, FACTURATION, GSE, TECHNICIEN avec format GSE
+      const isCanal = headers.some(h => h.includes('ref pxo') || h === 'facturation' || h.includes('date solde') || h === 'gse');
+      if (isOrange && !isCanal) setImportType('orange');
+      else if (isCanal) setImportType('canal');
       else setImportType('');
       setPreview({ headers: json[0], rows: json.slice(1, 6), total: json.length - 1 });
     } catch (err) { setError('Erreur de lecture du fichier'); }
@@ -698,27 +702,87 @@ function FileImportSection({ orangePrices, canalPrices, onImportComplete }) {
       const sheet = workbook.Sheets[workbook.SheetNames[0]];
       const json = XLSX.utils.sheet_to_json(sheet);
       const periode = `${new Date().toLocaleDateString('fr-FR')} - ${selectedFile.name}`;
+      
+      // Helper: get value from row with multiple possible column names
+      const getCol = (row, ...names) => {
+        for (const name of names) {
+          const keys = Object.keys(row);
+          const key = keys.find(k => k.toLowerCase().trim() === name.toLowerCase().trim() || k.toLowerCase().includes(name.toLowerCase()));
+          if (key && row[key] !== undefined && row[key] !== null && row[key] !== '') return row[key];
+        }
+        return '';
+      };
+      
       if (importType === 'orange') {
         const interventions = json.map(row => {
-          const date = parseExcelDate(row['Date Cloture'] || row['date_cloture'] || row['Date']);
-          return { periode, nd: row['ND'] || row['nd'] || '', tech: row['Technicien'] || row['tech'] || row['TECH'] || '', articles: row['Articles'] || row['articles'] || row['Code'] || '', montant_st: parseFloat(row['Montant ST'] || row['montant_st'] || row['Montant'] || 0), intervention_date: date ? date.toISOString().split('T')[0] : null, week_number: date ? getWeekNumber(date) : null, month: date ? date.getMonth() + 1 : null, year: date ? date.getFullYear() : null };
+          const date = parseExcelDate(getCol(row, 'Date Cloture', 'date_cloture', 'Date'));
+          return { 
+            periode, 
+            nd: getCol(row, 'ND', 'nd') || '', 
+            tech: getCol(row, 'Technicien', 'tech', 'TECH') || '', 
+            articles: getCol(row, 'Articles', 'articles', 'Code') || '', 
+            montant_st: parseFloat(getCol(row, 'Montant ST', 'montant_st', 'Montant') || 0), 
+            intervention_date: date ? date.toISOString().split('T')[0] : null, 
+            week_number: date ? getWeekNumber(date) : null, 
+            month: date ? date.getMonth() + 1 : null, 
+            year: date ? date.getFullYear() : null 
+          };
         }).filter(i => i.tech && i.montant_st > 0);
         await insertOrangeInterventions(interventions);
         await createImport({ type: 'orange', periode, filename: selectedFile.name, total_records: interventions.length, total_montant: interventions.reduce((s, i) => s + i.montant_st, 0) });
       } else {
-        // Canal+ with Travaux supplémentaires support
+        // Canal+ avec support des Travaux supplémentaires
         const extractCodes = (str) => str ? String(str).match(/[A-Z]{2,}[A-Z0-9]*/gi)?.map(m => m.toUpperCase()) || [] : [];
+        
         const interventions = json.map(row => {
-          const date = parseExcelDate(row['Date Realisation'] || row['date_realisation'] || row['Date'] || row['DATE SOLDE']);
-          const mainCode = (row['Facturation'] || row['facturation'] || row['Code'] || '').toUpperCase();
-          const travauxSupp = row['Travaux supplémentaires'] || row['travaux_supplementaires'] || row['Travaux Supplementaires'] || '';
-          const suppCodes = extractCodes(travauxSupp);
-          const mainPrice = canalPrices.find(p => p.code === mainCode);
-          let totalGset = mainPrice?.gset_price || 0, totalTech = mainPrice?.tech_price || 0;
-          suppCodes.forEach(code => { const p = canalPrices.find(pr => pr.code === code); if (p) { totalGset += p.gset_price; totalTech += p.tech_price; } });
+          // Date: plusieurs formats possibles
+          const date = parseExcelDate(getCol(row, 'DATE SOLDE', 'Date Realisation', 'date_realisation', 'Date', 'DATE_SOLDE'));
+          
+          // Code facturation principal (colonne FACTURATION)
+          const mainCodeRaw = getCol(row, 'FACTURATION', 'Facturation', 'facturation', 'Code');
+          const mainCode = mainCodeRaw ? String(mainCodeRaw).toUpperCase().trim() : '';
+          
+          // Travaux supplémentaires (colonne L généralement)
+          const travauxSuppRaw = getCol(row, 'TRAVAUX SUPPLEMENTAIRES', 'Travaux supplémentaires', 'travaux_supplementaires', 'Travaux Supplementaires', 'TRAVAUX_SUPPLEMENTAIRES');
+          const suppCodes = extractCodes(travauxSuppRaw);
+          
+          // Calcul des prix - code principal
+          const mainPrice = mainCode ? canalPrices.find(p => p.code === mainCode) : null;
+          let totalGset = mainPrice?.gset_price || 0;
+          let totalTech = mainPrice?.tech_price || 0;
+          
+          // Ajouter les travaux supplémentaires
+          suppCodes.forEach(code => { 
+            const p = canalPrices.find(pr => pr.code === code); 
+            if (p) { 
+              totalGset += p.gset_price; 
+              totalTech += p.tech_price; 
+            } 
+          });
+          
+          // Affichage des codes (ex: "PBEA + TXPD")
           const allCodes = mainCode ? (suppCodes.length ? `${mainCode} + ${suppCodes.join(' + ')}` : mainCode) : suppCodes.join(' + ');
-          return { periode, tech: row['GSE'] || row['gse'] || row['Tech'] || row['TECHNICIEN'] || '', tech_name: row['Nom Technicien'] || row['nom_technicien'] || '', ref_pxo: row['Ref PXO'] || row['ref_pxo'] || row['Ref_PXO'] || '', facturation: allCodes, agence: row['Agence'] || row['agence'] || '', montant_gset: totalGset, montant_tech: totalTech, intervention_date: date ? date.toISOString().split('T')[0] : null, week_number: date ? getWeekNumber(date) : null, month: date ? date.getMonth() + 1 : null, year: date ? date.getFullYear() : null };
-        }).filter(i => i.tech && (i.montant_gset > 0 || i.montant_tech > 0));
+          
+          // Technicien: colonne TECHNICIEN ou GSE
+          const techRaw = getCol(row, 'TECHNICIEN', 'GSE', 'gse', 'Tech');
+          const tech = techRaw ? String(techRaw).trim() : '';
+          
+          return { 
+            periode, 
+            tech,
+            tech_name: getCol(row, 'Nom Technicien', 'nom_technicien') || '', 
+            ref_pxo: String(getCol(row, 'Ref PXO', 'ref_pxo', 'Ref_PXO', 'REF PXO') || ''),
+            facturation: allCodes, 
+            agence: getCol(row, 'Agence', 'agence') || '', 
+            montant_gset: totalGset, 
+            montant_tech: totalTech, 
+            intervention_date: date ? date.toISOString().split('T')[0] : null, 
+            week_number: date ? getWeekNumber(date) : null, 
+            month: date ? date.getMonth() + 1 : null, 
+            year: date ? date.getFullYear() : null 
+          };
+        }).filter(i => i.tech && (i.montant_gset > 0 || i.facturation));
+        
         await insertCanalInterventions(interventions);
         await createImport({ type: 'canal', periode, filename: selectedFile.name, total_records: interventions.length, total_montant: interventions.reduce((s, i) => s + i.montant_gset, 0) });
       }
