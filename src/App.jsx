@@ -798,8 +798,8 @@ function FileImportSection({ orangePrices, canalPrices, onImportComplete }) {
             montant_st: parseFloat(getCol(row, 'Montant ST', 'montant_st', 'Montant') || 0), 
             intervention_date: date ? date.toISOString().split('T')[0] : null, 
             week_number: date ? getWeekNumber(date) : null, 
-            month: date ? date.getMonth() + 1 : null, 
-            year: date ? date.getFullYear() : null 
+            month: selectedMonth,  // Utiliser le mois sélectionné
+            year: selectedYear     // Utiliser l'année sélectionnée
           };
         }).filter(i => i.tech && i.montant_st > 0);
         await insertOrangeInterventions(interventions);
@@ -852,8 +852,8 @@ function FileImportSection({ orangePrices, canalPrices, onImportComplete }) {
             montant_tech: totalTech, 
             intervention_date: date ? date.toISOString().split('T')[0] : null, 
             week_number: date ? getWeekNumber(date) : null, 
-            month: date ? date.getMonth() + 1 : null, 
-            year: date ? date.getFullYear() : null 
+            month: selectedMonth,  // Utiliser le mois sélectionné, pas celui de la date
+            year: selectedYear     // Utiliser l'année sélectionnée, pas celle de la date
           };
         }).filter(i => i.tech && (i.montant_gset > 0 || i.facturation));
         
