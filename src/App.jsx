@@ -4,7 +4,8 @@ import {
   TrendingUp, Euro, Calendar, BarChart3, PieChart, User, Plus, Trash2, 
   Save, ChevronDown, Filter, Check, Zap, Mail, Lock, Users,
   KeyRound, AlertCircle, Eye, EyeOff, Loader2, RefreshCw, Trophy,
-  Target, Award, TrendingDown, Activity, Crown
+  Target, Award, TrendingDown, Activity, Crown, CalendarDays,
+  CheckCircle, XCircle, Clock, AlertTriangle
 } from 'lucide-react';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
@@ -392,7 +393,7 @@ function PeriodSelector({ periods, selectedYear, selectedMonth, selectedWeek, vi
 }
 
 // === INTERVENTIONS TABLE ===
-function InterventionsTable({ interventions, title, showTech = true, orangePrices }) {
+function InterventionsTable({ interventions, title, showTech = true, orangePrices, isDirection = true }) {
   const { theme } = useTheme();
   const { showAmounts } = useAmountVisibility();
   const t = themes[theme];
@@ -419,8 +420,8 @@ function InterventionsTable({ interventions, title, showTech = true, orangePrice
             {showTech && <th className={`px-4 py-3 text-left font-medium ${t.textSecondary} uppercase text-xs`}>Technicien</th>}
             <th className={`px-4 py-3 text-left font-medium ${t.textSecondary} uppercase text-xs`}>Réf</th>
             <th className={`px-4 py-3 text-left font-medium ${t.textSecondary} uppercase text-xs`}>Type</th>
-            <th className={`px-4 py-3 text-right font-medium ${t.textSecondary} uppercase text-xs`}>ST</th>
-            <th className={`px-4 py-3 text-right font-medium ${t.textSecondary} uppercase text-xs`}>Tech</th>
+            {isDirection && <th className={`px-4 py-3 text-right font-medium ${t.textSecondary} uppercase text-xs`}>ST</th>}
+            <th className={`px-4 py-3 text-right font-medium ${t.textSecondary} uppercase text-xs`}>{isDirection ? 'Tech' : 'Prix'}</th>
           </tr></thead>
           <tbody className={`divide-y ${t.borderLight}`}>
             {displayed.map((inter, i) => (
@@ -430,8 +431,8 @@ function InterventionsTable({ interventions, title, showTech = true, orangePrice
                 {showTech && <td className={`px-4 py-3 ${t.text}`}>{inter.tech || inter.tech_name || '-'}</td>}
                 <td className={`px-4 py-3 font-mono ${t.textSecondary}`}>{inter.nd || inter.ref_pxo || '-'}</td>
                 <td className={`px-4 py-3 ${t.text}`}>{inter.articles || inter.facturation || '-'}</td>
-                <td className={`px-4 py-3 text-right font-medium ${inter.source === 'orange' ? 'text-orange-500' : 'text-purple-500'}`}>{formatAmount(inter.source === 'orange' ? inter.montant_st : inter.montant_gset)}</td>
-                <td className={`px-4 py-3 text-right font-medium text-blue-500`}>{formatAmount(getTechPrice(inter))}</td>
+                {isDirection && <td className={`px-4 py-3 text-right font-medium ${inter.source === 'orange' ? 'text-orange-500' : 'text-purple-500'}`}>{formatAmount(inter.source === 'orange' ? inter.montant_st : inter.montant_gset)}</td>}
+                <td className={`px-4 py-3 text-right font-medium ${isDirection ? 'text-blue-500' : 'text-emerald-500'}`}>{formatAmount(getTechPrice(inter))}</td>
               </tr>
             ))}
           </tbody>
@@ -648,7 +649,7 @@ function TechDashboardStats({ filteredOrange, filteredCanal, orangePrices, profi
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard icon={Euro} label="Total à percevoir" value={`${stats.totalTech.toLocaleString('fr-FR')}€`} color="emerald" />
+        <StatCard icon={Euro} label="Revenus" value={`${stats.totalTech.toLocaleString('fr-FR')}€`} color="emerald" />
         <StatCard icon={Activity} label="Interventions" value={stats.totalCount} sub={`${stats.orangeCount} Orange • ${stats.canalCount} Canal+`} color="blue" hideable={false} />
         <StatCard icon={TrendingUp} label="Orange" value={`${stats.orangeCount}`} color="orange" hideable={false} />
         <StatCard icon={PieChart} label="Canal+" value={`${stats.canalCount}`} color="purple" hideable={false} />
@@ -951,8 +952,18 @@ function UserManagementPage({ profiles, onRefresh }) {
   const [saving, setSaving] = useState(null);
   const [confirmDelete, setConfirmDelete] = useState(null);
   const [deleting, setDeleting] = useState(false);
+  const [customAlias, setCustomAlias] = useState({});
 
-  useEffect(() => { getAvailableTechNames().then(setAvailableNames); }, []);
+  useEffect(() => { 
+    // Merge names from RCC imports AND Daily tracking
+    const loadNames = async () => {
+      const rccNames = await getAvailableTechNames();
+      const dailyTechs = JSON.parse(localStorage.getItem('gsetplans_daily_techs') || '[]');
+      const allNames = new Set([...rccNames, ...dailyTechs]);
+      setAvailableNames(Array.from(allNames).sort());
+    };
+    loadNames();
+  }, []);
 
   const usedAliases = useMemo(() => {
     const used = new Set();
@@ -979,10 +990,14 @@ function UserManagementPage({ profiles, onRefresh }) {
   };
 
   const handleAddAlias = async (profile) => {
-    const alias = selectedAlias[profile.id];
+    const alias = profile._customAlias || selectedAlias[profile.id];
     if (!alias) return;
     setSaving(profile.id);
-    try { await updateProfile(profile.id, { aliases: [...(profile.aliases || []), alias] }); setSelectedAlias(prev => ({ ...prev, [profile.id]: '' })); onRefresh?.(); } catch (err) { console.error(err); } finally { setSaving(null); }
+    try { 
+      await updateProfile(profile.id, { aliases: [...(profile.aliases || []), alias] }); 
+      setSelectedAlias(prev => ({ ...prev, [profile.id]: '' })); 
+      onRefresh?.(); 
+    } catch (err) { console.error(err); } finally { setSaving(null); }
   };
 
   const handleRemoveAlias = async (profile, aliasToRemove) => {
@@ -1034,21 +1049,42 @@ function UserManagementPage({ profiles, onRefresh }) {
                   ) : (<button onClick={() => setConfirmDelete(profile.id)} className={`p-2 ${t.textMuted} hover:text-red-500 rounded-lg transition-colors`}><Trash2 className="w-4 h-4" /></button>)}
                 </div>
                 <div>
-                  <label className={`text-xs ${t.textMuted} mb-2 block`}>Aliases (techniciens sous responsabilité)</label>
-                  <div className="flex flex-wrap gap-2 mb-2">
+                  <label className={`text-xs ${t.textMuted} mb-2 block`}>Aliases (noms dans RCC & Daily pour voir les données)</label>
+                  <div className="flex flex-wrap gap-2 mb-3">
                     {(profile.aliases || []).map((alias, i) => (
                       <span key={i} className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-sm ${t.bgTertiary} ${t.text}`}>
                         <span className={alias.startsWith('GSE') ? 'font-mono text-purple-500' : ''}>{alias}</span>
                         <button onClick={() => handleRemoveAlias(profile, alias)} disabled={saving === profile.id} className={`${t.textMuted} hover:text-red-500`}><X className="w-3 h-3" /></button>
                       </span>
                     ))}
-                    {(profile.aliases || []).length === 0 && <span className={`text-xs ${t.textMuted} italic`}>Aucun alias</span>}
+                    {(profile.aliases || []).length === 0 && <span className={`text-xs ${t.textMuted} italic`}>Aucun alias - ajoutez les noms du Daily</span>}
                   </div>
-                  <div className="flex gap-2">
+                  <div className="flex flex-col sm:flex-row gap-2">
                     <select value={selectedAlias[profile.id] || ''} onChange={(e) => setSelectedAlias(prev => ({ ...prev, [profile.id]: e.target.value }))} className={`flex-1 ${inputClass}`}>
-                      <option value="">Ajouter un alias...</option>{available.map(name => <option key={name} value={name}>{name}</option>)}
+                      <option value="">Sélectionner depuis RCC/Daily...</option>
+                      {available.length > 0 && <optgroup label="📊 Noms disponibles">{available.map(name => <option key={name} value={name}>{name}</option>)}</optgroup>}
                     </select>
-                    <button onClick={() => handleAddAlias(profile)} disabled={!selectedAlias[profile.id] || saving === profile.id} className="px-4 py-2 bg-emerald-500 text-white rounded-xl hover:bg-emerald-600 disabled:opacity-50">{saving === profile.id ? <LoadingSpinner size="sm" /> : <Plus className="w-4 h-4" />}</button>
+                    <input 
+                      type="text" 
+                      placeholder="Ou saisir manuellement..." 
+                      value={customAlias[profile.id] || ''} 
+                      onChange={(e) => setCustomAlias(prev => ({ ...prev, [profile.id]: e.target.value }))}
+                      className={`flex-1 ${inputClass}`}
+                    />
+                    <button 
+                      onClick={() => {
+                        const alias = selectedAlias[profile.id] || customAlias[profile.id];
+                        if (alias) {
+                          handleAddAlias({ ...profile, _customAlias: alias });
+                          setCustomAlias(prev => ({ ...prev, [profile.id]: '' }));
+                        }
+                      }} 
+                      disabled={(!selectedAlias[profile.id] && !customAlias[profile.id]) || saving === profile.id} 
+                      className="px-4 py-2 bg-emerald-500 text-white rounded-xl hover:bg-emerald-600 disabled:opacity-50 flex items-center gap-2"
+                    >
+                      {saving === profile.id ? <LoadingSpinner size="sm" /> : <Plus className="w-4 h-4" />}
+                      <span className="hidden sm:inline">Ajouter</span>
+                    </button>
                   </div>
                 </div>
               </div>
@@ -1127,6 +1163,630 @@ function PriceGridPage({ orangePrices, canalPrices, onRefresh }) {
 }
 
 
+// === DAILY PAGE (Infloww-inspired) ===
+function DailyPage({ orangePrices, canalPrices, profile }) {
+  const { theme } = useTheme();
+  const { showAmounts } = useAmountVisibility();
+  const t = themes[theme];
+  const [dailyData, setDailyData] = useState(() => {
+    const saved = localStorage.getItem('gsetplans_daily');
+    return saved ? JSON.parse(saved) : { orange: [], canal: [], lastUpdate: null, month: null, year: null };
+  });
+  const [importing, setImporting] = useState(false);
+  const [periodFilter, setPeriodFilter] = useState('month'); // 'today', 'week', 'month', 'custom'
+  const [selectedTech, setSelectedTech] = useState('all');
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
+  const [showAllDetails, setShowAllDetails] = useState(false);
+  const isDirection = profile?.role === 'dir';
+
+  // Save to localStorage
+  useEffect(() => {
+    localStorage.setItem('gsetplans_daily', JSON.stringify(dailyData));
+  }, [dailyData]);
+
+  // Calculate average prices - ST for admin, Tech for technicians
+  const avgPrices = useMemo(() => {
+    if (isDirection) {
+      const orangeAvg = orangePrices.length > 0 
+        ? orangePrices.reduce((s, p) => s + (p.gset_price || 0), 0) / orangePrices.length 
+        : 85;
+      const canalAvg = canalPrices.length > 0 
+        ? canalPrices.reduce((s, p) => s + (p.gset_price || 0), 0) / canalPrices.length 
+        : 250;
+      return { orange: orangeAvg, canal: canalAvg };
+    } else {
+      const orangeAvg = orangePrices.length > 0 
+        ? orangePrices.reduce((s, p) => s + (p.tech_price || 0), 0) / orangePrices.length 
+        : 45;
+      const canalAvg = canalPrices.length > 0 
+        ? canalPrices.reduce((s, p) => s + (p.tech_price || 0), 0) / canalPrices.length 
+        : 120;
+      return { orange: orangeAvg, canal: canalAvg };
+    }
+  }, [orangePrices, canalPrices, isDirection]);
+
+  // Get unique techs from data
+  const techsList = useMemo(() => {
+    const techs = new Set();
+    dailyData.orange.forEach(d => techs.add(d.tech));
+    dailyData.canal.forEach(d => techs.add(d.tech));
+    return Array.from(techs).sort();
+  }, [dailyData]);
+
+  // Get today's date info
+  const today = new Date();
+  const todayStr = today.toISOString().split('T')[0];
+  const weekStart = new Date(today);
+  weekStart.setDate(today.getDate() - today.getDay() + 1);
+  const weekStartStr = weekStart.toISOString().split('T')[0];
+  const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
+  const monthStartStr = monthStart.toISOString().split('T')[0];
+
+  // Filter data based on period and profile aliases
+  const filteredData = useMemo(() => {
+    let orange = dailyData.orange;
+    let canal = dailyData.canal;
+    
+    // Filter by tech aliases for non-direction users
+    if (!isDirection && profile?.aliases?.length) {
+      const aliases = profile.aliases.map(a => a.toLowerCase());
+      orange = orange.filter(d => aliases.some(a => d.tech?.toLowerCase().includes(a) || a.includes(d.tech?.toLowerCase() || '')));
+      canal = canal.filter(d => aliases.some(a => d.tech?.toLowerCase().includes(a) || a.includes(d.tech?.toLowerCase() || '')));
+    }
+    
+    // Filter by selected tech (admin only)
+    if (isDirection && selectedTech !== 'all') {
+      orange = orange.filter(d => d.tech === selectedTech);
+      canal = canal.filter(d => d.tech === selectedTech);
+    }
+    
+    // Filter by period
+    if (periodFilter === 'today') {
+      orange = orange.filter(d => d.date === todayStr);
+      canal = canal.filter(d => d.date === todayStr);
+    } else if (periodFilter === 'week') {
+      orange = orange.filter(d => d.date >= weekStartStr && d.date <= todayStr);
+      canal = canal.filter(d => d.date >= weekStartStr && d.date <= todayStr);
+    } else if (periodFilter === 'custom' && dateFrom && dateTo) {
+      orange = orange.filter(d => d.date >= dateFrom && d.date <= dateTo);
+      canal = canal.filter(d => d.date >= dateFrom && d.date <= dateTo);
+    }
+    // 'month' shows all data (current month)
+    
+    return { orange, canal };
+  }, [dailyData, selectedTech, periodFilter, isDirection, profile, todayStr, weekStartStr, dateFrom, dateTo]);
+
+  // Calculate stats for each period
+  const calculateStats = (data) => {
+    const orangeOK = data.orange.reduce((s, d) => s + (d.otOK || 0), 0);
+    const orangeNOK = data.orange.reduce((s, d) => s + (d.otNOK || 0), 0);
+    const orangeReport = data.orange.reduce((s, d) => s + (d.otReportes || 0), 0);
+    const canalOK = data.canal.reduce((s, d) => s + (d.otOK || 0), 0);
+    const canalNOK = data.canal.reduce((s, d) => s + (d.otNOK || 0), 0);
+    const canalReport = data.canal.reduce((s, d) => s + (d.otReportes || 0), 0);
+    const orangeRevenu = orangeOK * avgPrices.orange;
+    const canalRevenu = canalOK * avgPrices.canal;
+    return {
+      orange: { ok: orangeOK, nok: orangeNOK, report: orangeReport, revenu: orangeRevenu },
+      canal: { ok: canalOK, nok: canalNOK, report: canalReport, revenu: canalRevenu },
+      total: { ok: orangeOK + canalOK, nok: orangeNOK + canalNOK, report: orangeReport + canalReport, revenu: orangeRevenu + canalRevenu }
+    };
+  };
+
+  const stats = useMemo(() => calculateStats(filteredData), [filteredData, avgPrices]);
+
+  // Tech performance data for admin
+  const techPerformance = useMemo(() => {
+    if (!isDirection) return [];
+    const byTech = {};
+    filteredData.orange.forEach(d => {
+      if (!byTech[d.tech]) byTech[d.tech] = { tech: d.tech, orangeOK: 0, canalOK: 0, total: 0, revenu: 0 };
+      byTech[d.tech].orangeOK += d.otOK || 0;
+      byTech[d.tech].total += d.otOK || 0;
+      byTech[d.tech].revenu += (d.otOK || 0) * avgPrices.orange;
+    });
+    filteredData.canal.forEach(d => {
+      if (!byTech[d.tech]) byTech[d.tech] = { tech: d.tech, orangeOK: 0, canalOK: 0, total: 0, revenu: 0 };
+      byTech[d.tech].canalOK += d.otOK || 0;
+      byTech[d.tech].total += d.otOK || 0;
+      byTech[d.tech].revenu += (d.otOK || 0) * avgPrices.canal;
+    });
+    return Object.values(byTech).sort((a, b) => b.total - a.total);
+  }, [filteredData, avgPrices, isDirection]);
+
+  // Daily chart data
+  const dailyChartData = useMemo(() => {
+    const byDate = {};
+    filteredData.orange.forEach(d => {
+      if (!byDate[d.date]) byDate[d.date] = { date: d.date, orangeOK: 0, canalOK: 0 };
+      byDate[d.date].orangeOK += d.otOK || 0;
+    });
+    filteredData.canal.forEach(d => {
+      if (!byDate[d.date]) byDate[d.date] = { date: d.date, orangeOK: 0, canalOK: 0 };
+      byDate[d.date].canalOK += d.otOK || 0;
+    });
+    return Object.values(byDate).sort((a, b) => a.date.localeCompare(b.date)).map(d => ({
+      ...d,
+      label: new Date(d.date).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' })
+    }));
+  }, [filteredData]);
+
+  // Handle file import
+  const handleFileImport = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setImporting(true);
+    
+    try {
+      const data = await file.arrayBuffer();
+      const workbook = XLSX.read(data);
+      
+      const orangeSheet = workbook.Sheets['SUIVI JOURNALIER ORANGE'];
+      const canalSheet = workbook.Sheets['SUIVI JOURNALIER CANAL'];
+      
+      if (!orangeSheet && !canalSheet) {
+        alert('Feuilles "SUIVI JOURNALIER ORANGE" ou "SUIVI JOURNALIER CANAL" non trouvées');
+        setImporting(false);
+        return;
+      }
+      
+      const parseSheet = (sheet) => {
+        if (!sheet) return [];
+        const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
+        const result = [];
+        
+        for (let i = 1; i < rows.length; i++) {
+          const row = rows[i];
+          if (!row[0] || !row[2]) continue;
+          
+          const dateVal = row[2];
+          let dateStr = '';
+          if (dateVal instanceof Date) {
+            dateStr = dateVal.toISOString().split('T')[0];
+          } else if (typeof dateVal === 'number') {
+            const d = new Date((dateVal - 25569) * 86400 * 1000);
+            dateStr = d.toISOString().split('T')[0];
+          } else if (typeof dateVal === 'string' && dateVal) {
+            dateStr = new Date(dateVal).toISOString().split('T')[0];
+          }
+          
+          if (!dateStr || dateStr === 'Invalid Date') continue;
+          
+          result.push({
+            tech: String(row[0]).trim(),
+            equipe: String(row[1] || 'D3').trim(),
+            date: dateStr,
+            etat: String(row[3] || '').trim(),
+            otPlanifies: parseFloat(row[4]) || 0,
+            otRealise: parseFloat(row[5]) || 0,
+            otOK: parseFloat(row[6]) || 0,
+            otNOK: parseFloat(row[7]) || 0,
+            otReportes: parseFloat(row[8]) || 0,
+            nd: row[13] || '',
+            commentaire: row[14] || ''
+          });
+        }
+        return result;
+      };
+      
+      const orangeData = parseSheet(orangeSheet);
+      const canalData = parseSheet(canalSheet);
+      
+      const now = new Date();
+      setDailyData({
+        orange: orangeData,
+        canal: canalData,
+        lastUpdate: now.toISOString(),
+        month: now.getMonth() + 1,
+        year: now.getFullYear()
+      });
+      
+      // Save tech names to suggest as aliases
+      const allTechs = new Set([...orangeData.map(d => d.tech), ...canalData.map(d => d.tech)]);
+      localStorage.setItem('gsetplans_daily_techs', JSON.stringify(Array.from(allTechs)));
+      
+      alert(`Import réussi: ${orangeData.length} lignes Orange, ${canalData.length} lignes Canal+`);
+    } catch (err) {
+      console.error('Import error:', err);
+      alert('Erreur lors de l\'import: ' + err.message);
+    } finally {
+      setImporting(false);
+      e.target.value = '';
+    }
+  };
+
+  const clearData = () => {
+    if (confirm('Effacer toutes les données Daily ?')) {
+      setDailyData({ orange: [], canal: [], lastUpdate: null, month: null, year: null });
+    }
+  };
+
+  const getPeriodLabel = () => {
+    if (periodFilter === 'today') return "Aujourd'hui";
+    if (periodFilter === 'week') return 'Cette semaine';
+    if (periodFilter === 'custom' && dateFrom && dateTo) {
+      const from = new Date(dateFrom).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' });
+      const to = new Date(dateTo).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' });
+      return `Du ${from} au ${to}`;
+    }
+    return 'Ce mois';
+  };
+
+  // Infloww-style stat card
+  const EarningCard = ({ icon: Icon, label, value, color, iconBg }) => (
+    <div className={`${t.bgSecondary} rounded-2xl p-5 border ${t.border}`}>
+      <div className="flex items-center justify-between">
+        <div>
+          <p className={`text-2xl font-bold ${t.text}`}>{showAmounts ? value : '••••'}</p>
+          <p className={`text-sm ${t.textMuted} mt-1`}>{label}</p>
+        </div>
+        <div className={`w-12 h-12 rounded-full flex items-center justify-center ${iconBg}`}>
+          <Icon className={`w-6 h-6 ${color}`} />
+        </div>
+      </div>
+    </div>
+  );
+
+  // Period selector tabs (Infloww style)
+  const PeriodTab = ({ id, label, active }) => (
+    <button
+      onClick={() => setPeriodFilter(id)}
+      className={`px-4 py-2 rounded-lg font-medium text-sm transition-all ${
+        active 
+          ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-500/25' 
+          : `${t.textSecondary} hover:${t.bgTertiary}`
+      }`}
+    >
+      {label}
+    </button>
+  );
+
+  return (
+    <div className="space-y-6">
+      {/* Header - Infloww style */}
+      <div className={`rounded-2xl border ${t.card} p-6`}>
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+          <div className="flex items-center gap-4">
+            <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center shadow-lg shadow-blue-500/25">
+              <Activity className="w-7 h-7 text-white" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h2 className={`text-xl font-bold ${t.text}`}>{isDirection ? 'Revenus équipe' : 'Mes revenus'}</h2>
+                <span className={`text-xs px-2 py-0.5 rounded-full ${t.bgTertiary} ${t.textMuted}`}>
+                  {new Date().toLocaleDateString('fr-FR', { timeZone: 'Europe/Paris' })} • UTC+01:00
+                </span>
+              </div>
+              <p className={`text-sm ${t.textMuted} mt-0.5`}>
+                {dailyData.lastUpdate 
+                  ? `Mis à jour ${new Date(dailyData.lastUpdate).toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', hour: '2-digit', minute: '2-digit' })}`
+                  : 'Aucune donnée importée'}
+              </p>
+            </div>
+          </div>
+          
+          <div className="flex flex-wrap items-center gap-3">
+            {/* Period selector */}
+            <div className={`flex flex-wrap gap-1 p-1 rounded-xl ${t.bgTertiary}`}>
+              <PeriodTab id="today" label="Aujourd'hui" active={periodFilter === 'today'} />
+              <PeriodTab id="week" label="Cette semaine" active={periodFilter === 'week'} />
+              <PeriodTab id="month" label="Ce mois" active={periodFilter === 'month'} />
+              <PeriodTab id="custom" label="Personnalisé" active={periodFilter === 'custom'} />
+            </div>
+            
+            {/* Custom date range */}
+            {periodFilter === 'custom' && (
+              <div className="flex items-center gap-2">
+                <span className={`text-sm ${t.textMuted}`}>Du</span>
+                <input 
+                  type="date" 
+                  value={dateFrom} 
+                  onChange={(e) => setDateFrom(e.target.value)}
+                  className={`px-3 py-2 rounded-lg border text-sm ${t.input} ${t.text}`}
+                />
+                <span className={`text-sm ${t.textMuted}`}>au</span>
+                <input 
+                  type="date" 
+                  value={dateTo} 
+                  onChange={(e) => setDateTo(e.target.value)}
+                  className={`px-3 py-2 rounded-lg border text-sm ${t.input} ${t.text}`}
+                />
+              </div>
+            )}
+            
+            {/* Import button (admin only) */}
+            {isDirection && (
+              <label className={`px-4 py-2.5 rounded-xl font-medium cursor-pointer transition-all ${importing ? 'bg-gray-400' : 'bg-emerald-500 hover:bg-emerald-600'} text-white flex items-center gap-2`}>
+                {importing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+                {importing ? 'Import...' : 'Importer'}
+                <input type="file" accept=".xlsx,.xls" onChange={handleFileImport} className="hidden" disabled={importing} />
+              </label>
+            )}
+            {isDirection && dailyData.orange.length > 0 && (
+              <button onClick={clearData} className="p-2.5 rounded-xl bg-red-500 hover:bg-red-600 text-white">
+                <Trash2 className="w-4 h-4" />
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {dailyData.orange.length === 0 && dailyData.canal.length === 0 ? (
+        <div className={`rounded-2xl border ${t.card} p-12 text-center`}>
+          <CalendarDays className={`w-16 h-16 mx-auto mb-4 ${t.textMuted}`} />
+          <h3 className={`text-lg font-semibold ${t.text} mb-2`}>Aucune donnée Daily</h3>
+          <p className={`${t.textMuted} mb-4`}>
+            {isDirection 
+              ? 'Importez le fichier SUIVI.xlsx pour voir la progression quotidienne'
+              : 'Les données seront disponibles une fois importées par l\'administrateur'}
+          </p>
+          {!isDirection && (
+            <p className={`text-sm ${t.textSecondary}`}>
+              Assurez-vous que votre nom figure dans les alias de votre compte
+            </p>
+          )}
+        </div>
+      ) : (
+        <>
+          {/* Tech filter (admin only) */}
+          {isDirection && (
+            <div className="flex gap-3">
+              <select value={selectedTech} onChange={(e) => setSelectedTech(e.target.value)} 
+                className={`px-4 py-2.5 rounded-xl border ${t.input} ${t.text} font-medium`}>
+                <option value="all">👥 Tous les techniciens</option>
+                {techsList.map(tech => <option key={tech} value={tech}>{tech}</option>)}
+              </select>
+            </div>
+          )}
+
+          {/* Main earnings display - Infloww style */}
+          <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
+            {/* Total Earnings - Large card */}
+            <div className={`lg:col-span-1 ${t.bgSecondary} rounded-2xl p-6 border ${t.border}`}>
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-emerald-400 to-teal-500 flex items-center justify-center">
+                  <Euro className="w-7 h-7 text-white" />
+                </div>
+              </div>
+              <p className={`text-sm ${t.textMuted} mb-1`}>{isDirection ? 'Total facturé' : 'Revenus'}</p>
+              <p className="text-4xl font-bold text-emerald-500">
+                {showAmounts ? `${stats.total.revenu.toLocaleString('fr-FR', { maximumFractionDigits: 0 })}€` : '••••€'}
+              </p>
+              <p className={`text-xs ${t.textMuted} mt-2`}>{getPeriodLabel()}</p>
+            </div>
+
+            {/* Other stats */}
+            <div className="lg:col-span-3 grid grid-cols-2 lg:grid-cols-3 gap-4">
+              <EarningCard 
+                icon={TrendingUp} 
+                label="Orange" 
+                value={`${stats.orange.revenu.toLocaleString('fr-FR', { maximumFractionDigits: 0 })}€`}
+                color="text-orange-500"
+                iconBg="bg-orange-100"
+              />
+              <EarningCard 
+                icon={PieChart} 
+                label="Canal+" 
+                value={`${stats.canal.revenu.toLocaleString('fr-FR', { maximumFractionDigits: 0 })}€`}
+                color="text-purple-500"
+                iconBg="bg-purple-100"
+              />
+              <EarningCard 
+                icon={CheckCircle} 
+                label="OT Réussis" 
+                value={stats.total.ok.toString()}
+                color="text-emerald-500"
+                iconBg="bg-emerald-100"
+              />
+              <EarningCard 
+                icon={XCircle} 
+                label="OT Échoués" 
+                value={stats.total.nok.toString()}
+                color="text-red-500"
+                iconBg="bg-red-100"
+              />
+              <EarningCard 
+                icon={Clock} 
+                label="OT Reportés" 
+                value={stats.total.report.toString()}
+                color="text-yellow-600"
+                iconBg="bg-yellow-100"
+              />
+              <EarningCard 
+                icon={Target} 
+                label="Taux réussite" 
+                value={stats.total.ok + stats.total.nok > 0 
+                  ? `${Math.round(stats.total.ok / (stats.total.ok + stats.total.nok) * 100)}%` 
+                  : '0%'}
+                color="text-blue-500"
+                iconBg="bg-blue-100"
+              />
+            </div>
+          </div>
+          
+          {/* Discreet note about average pricing */}
+          <p className={`text-xs ${t.textMuted} text-right -mt-4`}>
+            * Estimation basée sur le prix moyen des articles ({avgPrices.orange.toFixed(0)}€/Orange • {avgPrices.canal.toFixed(0)}€/Canal+)
+          </p>
+
+          {/* Charts */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Daily Progress Chart */}
+            <div className={`rounded-2xl border ${t.card} p-6`}>
+              <div className="flex items-center gap-3 mb-6">
+                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-400 to-teal-500 flex items-center justify-center">
+                  <BarChart3 className="w-5 h-5 text-white" />
+                </div>
+                <div>
+                  <h3 className={`font-semibold ${t.text}`}>Progression</h3>
+                  <p className={`text-sm ${t.textMuted}`}>OT réussis par jour</p>
+                </div>
+              </div>
+              <div className="h-64">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={dailyChartData}>
+                    <CartesianGrid strokeDasharray="3 3" stroke={theme === 'dark' ? '#374151' : '#e5e7eb'} />
+                    <XAxis dataKey="label" stroke={theme === 'dark' ? '#9ca3af' : '#6b7280'} fontSize={10} />
+                    <YAxis stroke={theme === 'dark' ? '#9ca3af' : '#6b7280'} fontSize={12} />
+                    <Tooltip content={({ active, payload, label }) => {
+                      if (active && payload && payload.length) {
+                        return (
+                          <div className={`${t.bgSecondary} border ${t.border} rounded-lg p-3 shadow-lg`}>
+                            <p className={`font-medium ${t.text} mb-2`}>{label}</p>
+                            {payload.map((p, i) => (
+                              <p key={i} className="text-sm" style={{ color: p.color }}>{p.name}: {p.value}</p>
+                            ))}
+                          </div>
+                        );
+                      }
+                      return null;
+                    }} />
+                    <Bar dataKey="orangeOK" name="Orange" fill="#f97316" radius={[4, 4, 0, 0]} />
+                    <Bar dataKey="canalOK" name="Canal+" fill="#8b5cf6" radius={[4, 4, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+
+            {/* Success Rate Pie */}
+            <div className={`rounded-2xl border ${t.card} p-6`}>
+              <div className="flex items-center gap-3 mb-6">
+                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-400 to-indigo-500 flex items-center justify-center">
+                  <PieChart className="w-5 h-5 text-white" />
+                </div>
+                <div>
+                  <h3 className={`font-semibold ${t.text}`}>Répartition</h3>
+                  <p className={`text-sm ${t.textMuted}`}>OK / NOK / Reportés</p>
+                </div>
+              </div>
+              <div className="h-56">
+                <ResponsiveContainer width="100%" height="100%">
+                  <RePieChart>
+                    <Pie
+                      data={[
+                        { name: 'Réussis', value: stats.total.ok, fill: '#10b981' },
+                        { name: 'Échoués', value: stats.total.nok, fill: '#ef4444' },
+                        { name: 'Reportés', value: stats.total.report, fill: '#f59e0b' }
+                      ]}
+                      cx="50%" cy="50%" innerRadius={50} outerRadius={75} paddingAngle={3} dataKey="value"
+                    />
+                    <Tooltip />
+                  </RePieChart>
+                </ResponsiveContainer>
+              </div>
+              <div className="flex justify-center gap-4 mt-2">
+                <div className="flex items-center gap-2"><div className="w-3 h-3 rounded-full bg-emerald-500" /><span className={`text-xs ${t.textSecondary}`}>OK ({stats.total.ok})</span></div>
+                <div className="flex items-center gap-2"><div className="w-3 h-3 rounded-full bg-red-500" /><span className={`text-xs ${t.textSecondary}`}>NOK ({stats.total.nok})</span></div>
+                <div className="flex items-center gap-2"><div className="w-3 h-3 rounded-full bg-yellow-500" /><span className={`text-xs ${t.textSecondary}`}>Report ({stats.total.report})</span></div>
+              </div>
+            </div>
+          </div>
+
+          {/* Tech Performance Table (Direction only) */}
+          {isDirection && techPerformance.length > 0 && (
+            <div className={`rounded-2xl border ${t.card} overflow-hidden`}>
+              <div className={`p-4 border-b ${t.border} flex items-center justify-between`}>
+                <div>
+                  <h3 className={`font-semibold ${t.text}`}>Classement techniciens</h3>
+                  <p className={`text-sm ${t.textMuted}`}>{getPeriodLabel()}</p>
+                </div>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead className={t.bgTertiary}>
+                    <tr>
+                      <th className={`px-4 py-3 text-left text-xs font-semibold ${t.textSecondary} uppercase`}>#</th>
+                      <th className={`px-4 py-3 text-left text-xs font-semibold ${t.textSecondary} uppercase`}>Technicien</th>
+                      <th className={`px-4 py-3 text-center text-xs font-semibold ${t.textSecondary} uppercase`}>Orange</th>
+                      <th className={`px-4 py-3 text-center text-xs font-semibold ${t.textSecondary} uppercase`}>Canal+</th>
+                      <th className={`px-4 py-3 text-center text-xs font-semibold ${t.textSecondary} uppercase`}>Total OT</th>
+                      <th className={`px-4 py-3 text-right text-xs font-semibold ${t.textSecondary} uppercase`}>Revenu ST</th>
+                    </tr>
+                  </thead>
+                  <tbody className={`divide-y ${t.border}`}>
+                    {techPerformance.slice(0, 15).map((tech, idx) => (
+                      <tr key={tech.tech} className={t.bgHover}>
+                        <td className={`px-4 py-3 ${t.textMuted}`}>
+                          {idx === 0 ? <Crown className="w-5 h-5 text-yellow-500" /> : idx === 1 ? <Award className="w-5 h-5 text-gray-400" /> : idx === 2 ? <Award className="w-5 h-5 text-amber-600" /> : idx + 1}
+                        </td>
+                        <td className={`px-4 py-3 font-medium ${t.text}`}>{tech.tech}</td>
+                        <td className="px-4 py-3 text-center"><span className="px-2 py-1 rounded-lg bg-orange-100 text-orange-600 font-medium text-sm">{tech.orangeOK}</span></td>
+                        <td className="px-4 py-3 text-center"><span className="px-2 py-1 rounded-lg bg-purple-100 text-purple-600 font-medium text-sm">{tech.canalOK}</span></td>
+                        <td className={`px-4 py-3 text-center font-bold ${t.text}`}>{tech.total}</td>
+                        <td className="px-4 py-3 text-right font-bold text-emerald-500">
+                          {showAmounts ? `${tech.revenu.toLocaleString('fr-FR', { maximumFractionDigits: 0 })}€` : '••••€'}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {/* Detail Table */}
+          <div className={`rounded-2xl border ${t.card} overflow-hidden`}>
+            <div className={`p-4 border-b ${t.border} flex items-center justify-between`}>
+              <div>
+                <h3 className={`font-semibold ${t.text}`}>Détail journalier</h3>
+                <p className={`text-sm ${t.textMuted}`}>{filteredData.orange.length + filteredData.canal.length} entrées • {getPeriodLabel()}</p>
+              </div>
+              {(filteredData.orange.length + filteredData.canal.length) > 20 && (
+                <button 
+                  onClick={() => setShowAllDetails(!showAllDetails)}
+                  className={`px-4 py-2 rounded-lg text-sm font-medium ${showAllDetails ? 'bg-gray-200 text-gray-700' : 'bg-emerald-500 text-white hover:bg-emerald-600'} transition-all`}
+                >
+                  {showAllDetails ? 'Réduire' : `Afficher tout (${filteredData.orange.length + filteredData.canal.length})`}
+                </button>
+              )}
+            </div>
+            <div className={`overflow-x-auto ${showAllDetails ? 'max-h-[600px]' : 'max-h-80'}`}>
+              <table className="w-full">
+                <thead className={`${t.bgTertiary} sticky top-0`}>
+                  <tr>
+                    <th className={`px-4 py-3 text-left text-xs font-semibold ${t.textSecondary} uppercase`}>Date</th>
+                    {isDirection && <th className={`px-4 py-3 text-left text-xs font-semibold ${t.textSecondary} uppercase`}>Technicien</th>}
+                    <th className={`px-4 py-3 text-left text-xs font-semibold ${t.textSecondary} uppercase`}>Source</th>
+                    <th className={`px-4 py-3 text-center text-xs font-semibold ${t.textSecondary} uppercase`}>État</th>
+                    <th className={`px-4 py-3 text-center text-xs font-semibold ${t.textSecondary} uppercase`}>OK</th>
+                    <th className={`px-4 py-3 text-center text-xs font-semibold ${t.textSecondary} uppercase`}>NOK</th>
+                    <th className={`px-4 py-3 text-center text-xs font-semibold ${t.textSecondary} uppercase`}>Report</th>
+                  </tr>
+                </thead>
+                <tbody className={`divide-y ${t.border}`}>
+                  {[...filteredData.orange.map(d => ({ ...d, source: 'Orange' })), ...filteredData.canal.map(d => ({ ...d, source: 'Canal+' }))]
+                    .sort((a, b) => b.date.localeCompare(a.date) || a.tech.localeCompare(b.tech))
+                    .slice(0, showAllDetails ? 500 : 20)
+                    .map((d, idx) => (
+                      <tr key={`${d.source}-${d.tech}-${d.date}-${idx}`} className={t.bgHover}>
+                        <td className={`px-4 py-2.5 text-sm ${t.text}`}>{new Date(d.date).toLocaleDateString('fr-FR', { weekday: 'short', day: '2-digit', month: 'short' })}</td>
+                        {isDirection && <td className={`px-4 py-2.5 text-sm font-medium ${t.text}`}>{d.tech}</td>}
+                        <td className="px-4 py-2.5">
+                          <span className={`px-2 py-1 rounded-full text-xs font-medium ${d.source === 'Orange' ? 'bg-orange-100 text-orange-700' : 'bg-purple-100 text-purple-700'}`}>
+                            {d.source}
+                          </span>
+                        </td>
+                        <td className="px-4 py-2.5 text-center">
+                          <span className={`px-2 py-1 rounded-full text-xs font-medium ${d.etat === 'Terminée' ? 'bg-emerald-100 text-emerald-700' : d.etat === 'Non planifiée' ? 'bg-gray-100 text-gray-600' : 'bg-blue-100 text-blue-700'}`}>
+                            {d.etat || '-'}
+                          </span>
+                        </td>
+                        <td className="px-4 py-2.5 text-center text-sm font-medium text-emerald-500">{d.otOK || 0}</td>
+                        <td className="px-4 py-2.5 text-center text-sm font-medium text-red-500">{d.otNOK || 0}</td>
+                        <td className="px-4 py-2.5 text-center text-sm font-medium text-yellow-500">{d.otReportes || 0}</td>
+                      </tr>
+                    ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 // === MAIN DASHBOARD ===
 function MainDashboard() {
   const { theme, setTheme } = useTheme();
@@ -1199,8 +1859,8 @@ function MainDashboard() {
   };
 
   const navItems = isDirection 
-    ? [{ id: 'dashboard', icon: LayoutDashboard, label: 'Dashboard' }, { id: 'import', icon: Upload, label: 'Import' }, { id: 'users', icon: Users, label: 'Comptes' }, { id: 'prices', icon: Euro, label: 'Grilles' }] 
-    : [{ id: 'dashboard', icon: User, label: 'Mon Récap' }];
+    ? [{ id: 'dashboard', icon: LayoutDashboard, label: 'Dashboard' }, { id: 'daily', icon: CalendarDays, label: 'Daily' }, { id: 'import', icon: Upload, label: 'Import' }, { id: 'users', icon: Users, label: 'Comptes' }, { id: 'prices', icon: Euro, label: 'Grilles' }] 
+    : [{ id: 'dashboard', icon: User, label: 'Mon Récap' }, { id: 'daily', icon: CalendarDays, label: 'Daily' }];
 
   if (loading && !orangeInterventions.length) {
     return <div className={`min-h-screen flex items-center justify-center ${t.bg}`}><LoadingSpinner size="lg" /></div>;
@@ -1308,7 +1968,7 @@ function MainDashboard() {
                   </div>
                 </>
               )}
-              <InterventionsTable interventions={allInterventions} title="Détail des interventions" showTech={isDirection} orangePrices={orangePrices} />
+              <InterventionsTable interventions={allInterventions} title="Détail des interventions" showTech={isDirection} orangePrices={orangePrices} isDirection={isDirection} />
             </>
           )}
 
@@ -1321,6 +1981,7 @@ function MainDashboard() {
 
           {isDirection && view === 'users' && <UserManagementPage profiles={profiles} onRefresh={loadData} />}
           {isDirection && view === 'prices' && <PriceGridPage orangePrices={orangePrices} canalPrices={canalPrices} onRefresh={loadData} />}
+          {view === 'daily' && <DailyPage orangePrices={orangePrices} canalPrices={canalPrices} profile={profile} />}
         </div>
       </main>
     </div>

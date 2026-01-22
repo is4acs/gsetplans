@@ -1,0 +1,62 @@
+[
+  {
+    "type": "CANAL",
+    "technicien": "Maxime Paul",
+    "date": "2026-01-20",
+    "etat": "Termin\u00e9e",
+    "planifies": 8,
+    "realises": 7,
+    "ok": 5,
+    "nok": 2,
+    "reportes": 1,
+    "tauxReussite": 0.714,
+    "tauxEchec": 0.286,
+    "tauxReport": 0.125,
+    "tauxCloture": 0.875
+  },
+  {
+    "type": "ORANGE",
+    "technicien": "Maxime Paul",
+    "date": "2026-01-20",
+    "etat": "Termin\u00e9e",
+    "planifies": 5,
+    "realises": 5,
+    "ok": 4,
+    "nok": 1,
+    "reportes": 0,
+    "tauxReussite": 0.8,
+    "tauxEchec": 0.2,
+    "tauxReport": 0,
+    "tauxCloture": 1.0
+  },
+  {
+    "type": "CANAL",
+    "technicien": "Zakaria Settou",
+    "date": "2026-01-20",
+    "etat": "Termin\u00e9e",
+    "planifies": 10,
+    "realises": 9,
+    "ok": 7,
+    "nok": 2,
+    "reportes": 1,
+    "tauxReussite": 0.778,
+    "tauxEchec": 0.222,
+    "tauxReport": 0.1,
+    "tauxCloture": 0.9
+  },
+  {
+    "type": "CANAL",
+    "technicien": "Maxime Paul",
+    "date": "2026-01-21",
+    "etat": "Termin\u00e9e",
+    "planifies": 9,
+    "realises": 8,
+    "ok": 6,
+    "nok": 2,
+    "reportes": 1,
+    "tauxReussite": 0.75,
+    "tauxEchec": 0.25,
+    "tauxReport": 0.111,
+    "tauxCloture": 0.889
+  }
+]
