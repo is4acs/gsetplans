@@ -18,7 +18,8 @@ import {
   getOrangePrices, updateOrangePrice, getCanalPrices, updateCanalPrice,
   getOrangeInterventions, insertOrangeInterventions, deleteOrangeInterventionsByPeriode,
   getCanalInterventions, insertCanalInterventions, deleteCanalInterventionsByPeriode,
-  getImports, createImport, deleteImport, getAvailablePeriods, getAvailableTechNames
+  getImports, createImport, deleteImport, getAvailablePeriods, getAvailableTechNames,
+  getDailyTracking, insertDailyTracking, getDailyImports, createDailyImport, deleteDailyImport
 } from './lib/supabase';
 
 // === CONTEXTS ===
@@ -1168,22 +1169,64 @@ function DailyPage({ orangePrices, canalPrices, profile }) {
   const { theme } = useTheme();
   const { showAmounts } = useAmountVisibility();
   const t = themes[theme];
-  const [dailyData, setDailyData] = useState(() => {
-    const saved = localStorage.getItem('gsetplans_daily');
-    return saved ? JSON.parse(saved) : { orange: [], canal: [], lastUpdate: null, month: null, year: null };
-  });
+  const [dailyData, setDailyData] = useState({ orange: [], canal: [], lastUpdate: null });
+  const [dailyImports, setDailyImports] = useState([]);
   const [importing, setImporting] = useState(false);
-  const [periodFilter, setPeriodFilter] = useState('month'); // 'today', 'week', 'month', 'custom'
+  const [loading, setLoading] = useState(true);
+  const [periodFilter, setPeriodFilter] = useState('month');
   const [selectedTech, setSelectedTech] = useState('all');
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
   const [showAllDetails, setShowAllDetails] = useState(false);
   const isDirection = profile?.role === 'dir';
 
-  // Save to localStorage
+  // Charger les données depuis Supabase
+  const loadDailyData = useCallback(async () => {
+    setLoading(true);
+    try {
+      const [tracking, imports] = await Promise.all([
+        getDailyTracking(),
+        getDailyImports()
+      ]);
+      
+      // Séparer par type
+      const orange = tracking.filter(d => d.type === 'ORANGE').map(d => ({
+        tech: d.technicien,
+        date: d.date,
+        etat: d.etat,
+        otPlanifies: d.planifies,
+        otRealise: d.realises,
+        otOK: d.ok,
+        otNOK: d.nok,
+        otReportes: d.reportes
+      }));
+      const canal = tracking.filter(d => d.type === 'CANAL').map(d => ({
+        tech: d.technicien,
+        date: d.date,
+        etat: d.etat,
+        otPlanifies: d.planifies,
+        otRealise: d.realises,
+        otOK: d.ok,
+        otNOK: d.nok,
+        otReportes: d.reportes
+      }));
+      
+      setDailyData({ 
+        orange, 
+        canal, 
+        lastUpdate: imports[0]?.created_at || null 
+      });
+      setDailyImports(imports);
+    } catch (err) {
+      console.error('Erreur chargement daily:', err);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
-    localStorage.setItem('gsetplans_daily', JSON.stringify(dailyData));
-  }, [dailyData]);
+    loadDailyData();
+  }, [loadDailyData]);
 
   // Calculate average prices - ST for admin, Tech for technicians
   const avgPrices = useMemo(() => {
@@ -1373,20 +1416,54 @@ function DailyPage({ orangePrices, canalPrices, profile }) {
       const orangeData = parseSheet(orangeSheet);
       const canalData = parseSheet(canalSheet);
       
-      const now = new Date();
-      setDailyData({
-        orange: orangeData,
-        canal: canalData,
-        lastUpdate: now.toISOString(),
-        month: now.getMonth() + 1,
-        year: now.getFullYear()
+      // Préparer les données pour Supabase
+      const periode = `${new Date().toLocaleDateString('fr-FR')} - ${file.name}`;
+      const supabaseRecords = [
+        ...orangeData.map(d => ({
+          type: 'ORANGE',
+          technicien: d.tech,
+          date: d.date,
+          etat: d.etat,
+          planifies: d.otPlanifies,
+          realises: d.otRealise,
+          ok: d.otOK,
+          nok: d.otNOK,
+          reportes: d.otReportes,
+          taux_reussite: d.otRealise > 0 ? d.otOK / d.otRealise : 0,
+          periode
+        })),
+        ...canalData.map(d => ({
+          type: 'CANAL',
+          technicien: d.tech,
+          date: d.date,
+          etat: d.etat,
+          planifies: d.otPlanifies,
+          realises: d.otRealise,
+          ok: d.otOK,
+          nok: d.otNOK,
+          reportes: d.otReportes,
+          taux_reussite: d.otRealise > 0 ? d.otOK / d.otRealise : 0,
+          periode
+        }))
+      ];
+      
+      // Envoyer vers Supabase
+      await insertDailyTracking(supabaseRecords);
+      
+      // Créer l'entrée d'import
+      const allDates = [...orangeData, ...canalData].map(d => new Date(d.date));
+      await createDailyImport({
+        filename: file.name,
+        total_records: supabaseRecords.length,
+        date_debut: allDates.length > 0 ? new Date(Math.min(...allDates)).toISOString().split('T')[0] : null,
+        date_fin: allDates.length > 0 ? new Date(Math.max(...allDates)).toISOString().split('T')[0] : null,
+        periode
       });
       
-      // Save tech names to suggest as aliases
-      const allTechs = new Set([...orangeData.map(d => d.tech), ...canalData.map(d => d.tech)]);
-      localStorage.setItem('gsetplans_daily_techs', JSON.stringify(Array.from(allTechs)));
+      // Recharger les données depuis Supabase
+      await loadDailyData();
       
-      alert(`Import réussi: ${orangeData.length} lignes Orange, ${canalData.length} lignes Canal+`);
+      alert(`Import réussi: ${orangeData.length} lignes Orange, ${canalData.length} lignes Canal+ envoyées vers Supabase`);
     } catch (err) {
       console.error('Import error:', err);
       alert('Erreur lors de l\'import: ' + err.message);
@@ -1396,9 +1473,17 @@ function DailyPage({ orangePrices, canalPrices, profile }) {
     }
   };
 
-  const clearData = () => {
+  const clearData = async () => {
     if (confirm('Effacer toutes les données Daily ?')) {
-      setDailyData({ orange: [], canal: [], lastUpdate: null, month: null, year: null });
+      // Supprimer tous les imports et leurs données
+      for (const imp of dailyImports) {
+        try {
+          await deleteDailyImport(imp.id, imp.periode);
+        } catch (e) {
+          console.error('Erreur suppression:', e);
+        }
+      }
+      await loadDailyData();
     }
   };
 
