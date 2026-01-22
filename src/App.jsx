@@ -685,6 +685,8 @@ function FileImportSection({ orangePrices, canalPrices, onImportComplete }) {
   const [importing, setImporting] = useState(false);
   const [preview, setPreview] = useState(null);
   const [error, setError] = useState('');
+  const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
+  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
 
   const handleFileSelect = async (e) => {
     const file = e.target.files?.[0];
@@ -693,18 +695,49 @@ function FileImportSection({ orangePrices, canalPrices, onImportComplete }) {
     try {
       const data = await file.arrayBuffer();
       const workbook = XLSX.read(data);
-      const sheet = workbook.Sheets[workbook.SheetNames[0]];
+      
+      // Pour Orange RCC: chercher la feuille "Détails" ou celle avec les bonnes colonnes
+      let sheetName = workbook.SheetNames[0];
+      let sheet = workbook.Sheets[sheetName];
+      
+      // Si plusieurs feuilles, chercher "Détails" ou celle avec ND/TECH/Articles
+      if (workbook.SheetNames.length > 1) {
+        const detailsSheet = workbook.SheetNames.find(name => name.toLowerCase().includes('détail') || name.toLowerCase().includes('detail'));
+        if (detailsSheet) {
+          sheetName = detailsSheet;
+          sheet = workbook.Sheets[sheetName];
+        } else {
+          // Chercher la feuille avec les colonnes attendues
+          for (const name of workbook.SheetNames) {
+            const testSheet = workbook.Sheets[name];
+            const testJson = XLSX.utils.sheet_to_json(testSheet, { header: 1 });
+            const testHeaders = testJson[0]?.map(h => String(h).toLowerCase().trim()) || [];
+            if (testHeaders.some(h => h === 'nd' || h === 'tech' || h.includes('article'))) {
+              sheetName = name;
+              sheet = testSheet;
+              break;
+            }
+          }
+        }
+      }
+      
       const json = XLSX.utils.sheet_to_json(sheet, { header: 1 });
       const headers = json[0]?.map(h => String(h).toLowerCase().trim()) || [];
+      
       // Détection Orange: colonnes ND, Articles, Montant ST
       const isOrange = headers.some(h => h === 'nd' || h.includes('article') || h.includes('montant st'));
       // Détection Canal+: colonnes Ref PXO, FACTURATION, GSE, TECHNICIEN avec format GSE
       const isCanal = headers.some(h => h.includes('ref pxo') || h === 'facturation' || h.includes('date solde') || h === 'gse');
+      
       if (isOrange && !isCanal) setImportType('orange');
       else if (isCanal) setImportType('canal');
       else setImportType('');
+      
       setPreview({ headers: json[0], rows: json.slice(1, 6), total: json.length - 1 });
-    } catch (err) { setError('Erreur de lecture du fichier'); }
+    } catch (err) { 
+      console.error('Erreur lecture:', err);
+      setError('Erreur de lecture du fichier'); 
+    }
   };
 
   const handleImport = async () => {
@@ -713,9 +746,36 @@ function FileImportSection({ orangePrices, canalPrices, onImportComplete }) {
     try {
       const data = await selectedFile.arrayBuffer();
       const workbook = XLSX.read(data);
-      const sheet = workbook.Sheets[workbook.SheetNames[0]];
+      
+      // Pour Orange RCC: chercher la feuille "Détails" ou celle avec les bonnes colonnes
+      let sheetName = workbook.SheetNames[0];
+      let sheet = workbook.Sheets[sheetName];
+      
+      if (workbook.SheetNames.length > 1) {
+        const detailsSheet = workbook.SheetNames.find(name => name.toLowerCase().includes('détail') || name.toLowerCase().includes('detail'));
+        if (detailsSheet) {
+          sheetName = detailsSheet;
+          sheet = workbook.Sheets[sheetName];
+        } else {
+          for (const name of workbook.SheetNames) {
+            const testSheet = workbook.Sheets[name];
+            const testJson = XLSX.utils.sheet_to_json(testSheet, { header: 1 });
+            const testHeaders = testJson[0]?.map(h => String(h).toLowerCase().trim()) || [];
+            if (testHeaders.some(h => h === 'nd' || h === 'tech' || h.includes('article'))) {
+              sheetName = name;
+              sheet = testSheet;
+              break;
+            }
+          }
+        }
+      }
+      
       const json = XLSX.utils.sheet_to_json(sheet);
-      const periode = `${new Date().toLocaleDateString('fr-FR')} - ${selectedFile.name}`;
+      
+      // Format période: "MOIS ANNEE/TYPE" ex: "DECEMBRE 2025/ORANGE"
+      const monthName = MONTHS.find(m => m.value === selectedMonth)?.label.toUpperCase() || '';
+      const typeLabel = importType === 'orange' ? 'ORANGE' : 'CANAL+';
+      const periode = `${monthName} ${selectedYear}/${typeLabel}`;
       
       // Helper: get value from row with multiple possible column names
       const getCol = (row, ...names) => {
@@ -812,10 +872,26 @@ function FileImportSection({ orangePrices, canalPrices, onImportComplete }) {
       </div>
       {preview && (
         <div className={`rounded-xl border ${t.border} p-4 space-y-4`}>
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
             <div><p className={`font-medium ${t.text}`}>{selectedFile?.name}</p><p className={`text-sm ${t.textMuted}`}>{preview.total} lignes</p></div>
-            <select value={importType} onChange={(e) => setImportType(e.target.value)} className={`px-3 py-2 rounded-xl border ${t.input}`}><option value="">Type...</option><option value="orange">Orange</option><option value="canal">Canal+</option></select>
+            <select value={importType} onChange={(e) => setImportType(e.target.value)} className={`px-3 py-2 rounded-xl border ${t.input} w-full sm:w-auto`}><option value="">Type...</option><option value="orange">Orange</option><option value="canal">Canal+</option></select>
           </div>
+          
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className={`block text-sm font-medium ${t.textSecondary} mb-1.5`}>Période</label>
+              <select value={selectedMonth} onChange={(e) => setSelectedMonth(Number(e.target.value))} className={`w-full px-3 py-2 rounded-xl border ${t.input}`}>
+                {MONTHS.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className={`block text-sm font-medium ${t.textSecondary} mb-1.5`}>Année</label>
+              <select value={selectedYear} onChange={(e) => setSelectedYear(Number(e.target.value))} className={`w-full px-3 py-2 rounded-xl border ${t.input}`}>
+                {[2024, 2025, 2026, 2027].map(y => <option key={y} value={y}>{y}</option>)}
+              </select>
+            </div>
+          </div>
+          
           {error && <p className="text-red-500 text-sm">{error}</p>}
           <button onClick={handleImport} disabled={!importType || importing} className="w-full py-3 bg-emerald-500 text-white rounded-xl font-semibold hover:bg-emerald-600 disabled:opacity-50 flex items-center justify-center gap-2">{importing ? <LoadingSpinner size="sm" /> : <Upload className="w-5 h-5" />} Importer</button>
         </div>
@@ -1132,7 +1208,8 @@ function MainDashboard() {
 
   return (
     <div className={`min-h-screen flex ${t.bg} transition-colors`}>
-      <aside className={`${sidebarOpen ? 'w-64' : 'w-20'} ${t.sidebar} transition-all duration-300 flex flex-col`}>
+      {/* Sidebar Desktop */}
+      <aside className={`hidden lg:flex ${sidebarOpen ? 'w-64' : 'w-20'} ${t.sidebar} transition-all duration-300 flex-col`}>
         <div className="p-4 flex items-center gap-3">
           <div className="w-10 h-10 bg-emerald-500 rounded-xl flex items-center justify-center flex-shrink-0"><Zap className="w-5 h-5 text-white" /></div>
           {sidebarOpen && <div><h1 className="font-bold text-white">GSET PLANS</h1><p className="text-xs text-gray-500">FTTH D3 Guyane</p></div>}
@@ -1150,15 +1227,39 @@ function MainDashboard() {
         </div>
       </aside>
 
+      {/* Sidebar Mobile (Overlay) */}
+      {sidebarOpen && (
+        <div className="lg:hidden fixed inset-0 z-50">
+          <div onClick={() => setSidebarOpen(false)} className="absolute inset-0 bg-black/50" />
+          <aside className={`absolute inset-y-0 left-0 w-64 ${t.sidebar} flex flex-col shadow-2xl`}>
+            <div className="p-4 flex items-center gap-3">
+              <div className="w-10 h-10 bg-emerald-500 rounded-xl flex items-center justify-center flex-shrink-0"><Zap className="w-5 h-5 text-white" /></div>
+              <div><h1 className="font-bold text-white">GSET PLANS</h1><p className="text-xs text-gray-500">FTTH D3 Guyane</p></div>
+            </div>
+            <nav className="flex-1 p-3 space-y-1">
+              {navItems.map(item => (
+                <button key={item.id} onClick={() => { setView(item.id); setSidebarOpen(false); }} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${view === item.id ? t.sidebarActive : `${t.sidebarText} ${t.sidebarHover}`}`}>
+                  <item.icon className="w-5 h-5 flex-shrink-0" /><span className="font-medium">{item.label}</span>
+                </button>
+              ))}
+            </nav>
+            <div className="p-3 border-t border-gray-800">
+              <div className="mb-3 px-3 py-2 rounded-xl bg-gray-800/50"><p className="text-xs text-gray-500">Connecté</p><p className="font-medium text-white truncate text-sm">{profile?.name}</p><span className={`text-xs ${isDirection ? 'text-purple-400' : 'text-emerald-400'}`}>{isDirection ? 'Direction' : 'Technicien'}</span></div>
+              <button onClick={logout} className="w-full flex items-center gap-3 px-4 py-3 text-red-400 hover:bg-red-500/10 rounded-xl"><LogOut className="w-5 h-5" /><span className="font-medium">Déconnexion</span></button>
+            </div>
+          </aside>
+        </div>
+      )}
+
       <main className="flex-1 overflow-auto">
-        <header className={`${t.bgSecondary} border-b ${t.border} px-6 py-4 flex items-center justify-between sticky top-0 z-10`}>
+        <header className={`${t.bgSecondary} border-b ${t.border} px-4 sm:px-6 py-4 flex items-center justify-between sticky top-0 z-10`}>
           <div className="flex items-center gap-4">
             <button onClick={() => setSidebarOpen(!sidebarOpen)} className={`p-2 rounded-xl ${t.bgHover}`}>
               {sidebarOpen ? <X className={`w-5 h-5 ${t.textSecondary}`} /> : <Menu className={`w-5 h-5 ${t.textSecondary}`} />}
             </button>
-            <h2 className={`text-xl font-semibold ${t.text}`}>{navItems.find(n => n.id === view)?.label}</h2>
+            <h2 className={`text-lg sm:text-xl font-semibold ${t.text} truncate`}>{navItems.find(n => n.id === view)?.label}</h2>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 sm:gap-3">
             <VisibilityToggle />
             <button onClick={loadData} className={`p-2 rounded-xl ${t.bgTertiary} ${t.bgHover}`}><RefreshCw className={`w-5 h-5 ${t.textSecondary}`} /></button>
             <button onClick={() => setTheme(theme === 'light' ? 'dark' : 'light')} className={`p-2 rounded-xl ${t.bgTertiary} ${t.bgHover}`}>
@@ -1167,7 +1268,7 @@ function MainDashboard() {
           </div>
         </header>
 
-        <div className="p-6 space-y-6">
+        <div className="p-4 sm:p-6 space-y-6">
           {view === 'dashboard' && (
             <>
               <PeriodSelector periods={periods} selectedYear={selectedYear} selectedMonth={selectedMonth} selectedWeek={selectedWeek} viewMode={viewMode}
