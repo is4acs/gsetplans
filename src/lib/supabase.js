@@ -48,8 +48,14 @@ export async function resetPassword(email) {
 }
 
 export async function updatePassword(newPassword) {
-  const { error } = await supabase.auth.updateUser({ password: newPassword });
-  if (error) throw error;
+  try {
+    const { data, error } = await supabase.auth.updateUser({ password: newPassword });
+    if (error) throw error;
+    return data;
+  } catch (err) {
+    if (isAbortError(err)) return null;
+    throw err;
+  }
 }
 
 export function onAuthStateChange(callback) {

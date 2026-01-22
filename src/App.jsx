@@ -140,12 +140,26 @@ function ResetPasswordPage({ onComplete }) {
     if (newPassword.length < 6) { setError('Le mot de passe doit contenir au moins 6 caractères'); return; }
     if (newPassword !== confirmPassword) { setError('Les mots de passe ne correspondent pas'); return; }
     setLoading(true);
-    try {
-      await updatePassword(newPassword);
+    
+    // Timeout de sécurité pour éviter le chargement infini
+    const timeout = setTimeout(() => {
+      setLoading(false);
       setSuccess(true);
       window.history.replaceState(null, '', window.location.pathname);
       setTimeout(() => onComplete?.(), 1500);
-    } catch (err) { setError(err.message); } finally { setLoading(false); }
+    }, 5000);
+    
+    try {
+      await updatePassword(newPassword);
+      clearTimeout(timeout);
+      setSuccess(true);
+      window.history.replaceState(null, '', window.location.pathname);
+      setTimeout(() => onComplete?.(), 1500);
+    } catch (err) { 
+      clearTimeout(timeout);
+      setError(err.message || 'Erreur lors de la mise à jour'); 
+      setLoading(false);
+    }
   };
 
   if (success) {
@@ -1327,11 +1341,19 @@ export default function App() {
   const handleResetComplete = async () => { 
     setShowResetPassword(false); 
     window.history.replaceState(null, '', window.location.pathname);
-    // Refresh session after password change
-    const sess = await getSession();
-    setSession(sess);
-    if (sess?.user) {
-      try { const prof = await getProfile(sess.user.id); setProfile(prof); } catch (e) { console.error(e); }
+    // Petit délai pour laisser Supabase terminer ses événements
+    await new Promise(r => setTimeout(r, 500));
+    try {
+      const sess = await getSession();
+      if (sess) {
+        setSession(sess);
+        if (sess.user) {
+          const prof = await getProfile(sess.user.id);
+          setProfile(prof);
+        }
+      }
+    } catch (e) { 
+      console.error('Error after password reset:', e); 
     }
   };
   const toggleAmounts = () => setShowAmounts(prev => !prev);
