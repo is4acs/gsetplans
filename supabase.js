@@ -53,14 +53,16 @@ export async function resetPassword(email) {
 }
 
 export async function updatePassword(newPassword) {
-  try {
-    const { data, error } = await supabase.auth.updateUser({ password: newPassword });
-    if (error) throw error;
-    return data;
-  } catch (err) {
-    if (isAbortError(err)) return null;
-    throw err;
+  // Vérifier d'abord qu'on a une session active
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session) {
+    throw new Error('Session expirée. Veuillez redemander un lien de réinitialisation.');
   }
+  
+  const { data, error } = await supabase.auth.updateUser({ password: newPassword });
+  if (error) throw error;
+  if (!data?.user) throw new Error('Échec de la mise à jour du mot de passe');
+  return data;
 }
 
 export function onAuthStateChange(callback) {

@@ -143,23 +143,19 @@ function ResetPasswordPage({ onComplete }) {
     if (newPassword !== confirmPassword) { setError('Les mots de passe ne correspondent pas'); return; }
     setLoading(true);
     
-    // Timeout de sécurité pour éviter le chargement infini
-    const timeout = setTimeout(() => {
-      setLoading(false);
-      setSuccess(true);
-      window.history.replaceState(null, '', window.location.pathname);
-      setTimeout(() => onComplete?.(), 1500);
-    }, 5000);
-    
     try {
-      await updatePassword(newPassword);
-      clearTimeout(timeout);
-      setSuccess(true);
-      window.history.replaceState(null, '', window.location.pathname);
-      setTimeout(() => onComplete?.(), 1500);
+      const result = await updatePassword(newPassword);
+      if (result?.user) {
+        setSuccess(true);
+        window.history.replaceState(null, '', window.location.pathname);
+        setTimeout(() => onComplete?.(), 2000);
+      } else {
+        setError('Échec de la mise à jour. Veuillez réessayer.');
+        setLoading(false);
+      }
     } catch (err) { 
-      clearTimeout(timeout);
-      setError(err.message || 'Erreur lors de la mise à jour'); 
+      console.error('Password update error:', err);
+      setError(err.message || 'Erreur lors de la mise à jour. Veuillez redemander un lien.'); 
       setLoading(false);
     }
   };
@@ -1910,21 +1906,32 @@ function MainDashboard() {
   const [viewMode, setViewMode] = useState('mensuel');
   const isDirection = profile?.role === 'dir';
   const initialLoadDone = useRef(false);
+  const periodInitialized = useRef(false);
 
+  // Fonction pour charger uniquement les données (avec filtres actuels)
+  const loadInterventions = useCallback(async (year, month, week, mode) => {
+    const [oInter, cInter] = await Promise.all([
+      getOrangeInterventions({ year, month, week: mode === 'hebdo' ? week : null }),
+      getCanalInterventions({ year, month, week: mode === 'hebdo' ? week : null }),
+    ]);
+    setOrangeInterventions(oInter);
+    setCanalInterventions(cInter);
+  }, []);
+
+  // Chargement initial complet
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
-      const [profs, oPrices, cPrices, oInter, cInter, imps, pers] = await Promise.all([
+      const [profs, oPrices, cPrices, imps, pers] = await Promise.all([
         getAllProfiles(), getOrangePrices(), getCanalPrices(),
-        getOrangeInterventions({ year: selectedYear, month: selectedMonth, week: viewMode === 'hebdo' ? selectedWeek : null }),
-        getCanalInterventions({ year: selectedYear, month: selectedMonth, week: viewMode === 'hebdo' ? selectedWeek : null }),
         getImports(), getAvailablePeriods(),
       ]);
       setProfiles(profs); setOrangePrices(oPrices); setCanalPrices(cPrices);
-      setOrangeInterventions(oInter); setCanalInterventions(cInter); setImportsData(imps); setPeriods(pers);
+      setImportsData(imps); setPeriods(pers);
       
-      // Auto-select current month on first load if no period selected
-      if (!initialLoadDone.current && !selectedYear && pers.years?.length > 0) {
+      // Auto-select current/latest month on first load
+      if (!periodInitialized.current && pers.years?.length > 0) {
+        periodInitialized.current = true;
         const currentYear = new Date().getFullYear();
         const currentMonth = new Date().getMonth() + 1;
         // Use current year if available, otherwise latest year
@@ -1932,16 +1939,37 @@ function MainDashboard() {
         const availableMonths = pers.monthsByYear?.[yearToSelect] || [];
         // Use current month if available, otherwise latest month
         const monthToSelect = availableMonths.includes(currentMonth) ? currentMonth : availableMonths[availableMonths.length - 1];
+        
         if (yearToSelect && monthToSelect) {
           setSelectedYear(yearToSelect);
           setSelectedMonth(monthToSelect);
+          // Charger les interventions avec les filtres sélectionnés
+          await loadInterventions(yearToSelect, monthToSelect, null, viewMode);
+        } else {
+          // Pas de période disponible, charger sans filtre
+          await loadInterventions(null, null, null, viewMode);
         }
+      } else {
+        // Rechargement normal avec filtres actuels
+        await loadInterventions(selectedYear, selectedMonth, selectedWeek, viewMode);
       }
     } catch (err) { console.error('Error loading data:', err); } finally { setLoading(false); }
-  }, [selectedYear, selectedMonth, selectedWeek, viewMode]);
+  }, [selectedYear, selectedMonth, selectedWeek, viewMode, loadInterventions]);
 
-  useEffect(() => { loadData(); initialLoadDone.current = true; }, []);
-  useEffect(() => { if (initialLoadDone.current) loadData(); }, [selectedYear, selectedMonth, selectedWeek, viewMode]);
+  // Premier chargement
+  useEffect(() => { 
+    loadData(); 
+    initialLoadDone.current = true; 
+  }, []);
+  
+  // Rechargement quand les filtres changent (après init)
+  useEffect(() => { 
+    if (initialLoadDone.current && periodInitialized.current) {
+      setLoading(true);
+      loadInterventions(selectedYear, selectedMonth, selectedWeek, viewMode)
+        .finally(() => setLoading(false));
+    }
+  }, [selectedYear, selectedMonth, selectedWeek, viewMode, loadInterventions]);
 
   const filterForTech = (interventions, source) => {
     if (isDirection) return interventions;
@@ -2128,19 +2156,46 @@ export default function App() {
       return msg.includes('abort') || msg.includes('AbortError') || msg.includes('signal') || err.name === 'AbortError';
     };
 
-    // Check URL for recovery token FIRST
+    // Check URL for recovery token
     const checkRecoveryUrl = () => {
       const hash = window.location.hash;
       const search = window.location.search;
-      if (hash.includes('type=recovery') || hash.includes('access_token') || search.includes('type=recovery')) {
-        return true;
-      }
-      return false;
+      // Supabase met le token dans le hash ou les query params
+      return hash.includes('type=recovery') || 
+             hash.includes('access_token') || 
+             search.includes('type=recovery') ||
+             hash.includes('error_code=');
     };
 
     const initAuth = async () => {
       try {
-        // Small delay to avoid race conditions on mount
+        // Check for password recovery URL FIRST
+        const isRecovery = checkRecoveryUrl();
+        
+        if (isRecovery) {
+          // Attendre que Supabase traite le token dans l'URL
+          // Le client Supabase va automatiquement extraire le token et créer une session
+          await new Promise(r => setTimeout(r, 500));
+          
+          if (!isMounted) return;
+          
+          // Vérifier si Supabase a créé une session de récupération
+          const sess = await getSession();
+          
+          if (sess) {
+            setSession(sess);
+            setShowResetPassword(true);
+            setLoading(false);
+            return;
+          } else {
+            // Pas de session = token expiré ou invalide
+            setError('Le lien de réinitialisation a expiré. Veuillez en demander un nouveau.');
+            setLoading(false);
+            return;
+          }
+        }
+        
+        // Flow normal (pas de recovery)
         await new Promise(r => setTimeout(r, 100));
         if (!isMounted) return;
         
@@ -2153,19 +2208,9 @@ export default function App() {
           return;
         }
         
-        // Check for password recovery URL BEFORE getting session
-        const isRecovery = checkRecoveryUrl();
-        
         const sess = await getSession();
         if (!isMounted) return;
         setSession(sess);
-        
-        // If recovery URL detected, show reset page
-        if (isRecovery && sess) {
-          setShowResetPassword(true);
-          setLoading(false);
-          return;
-        }
         
         if (sess?.user) {
           try { 
@@ -2178,7 +2223,6 @@ export default function App() {
       } catch (err) {
         if (!isMounted) return;
         if (isAbortError(err)) {
-          // Abort errors are normal during hot reload, just retry
           console.log('Init aborted, retrying...');
           setTimeout(() => { if (isMounted) initAuth(); }, 500);
           return;
@@ -2240,7 +2284,25 @@ export default function App() {
   if (loading) return <div className="min-h-screen flex items-center justify-center bg-gray-50"><LoadingSpinner size="lg" /></div>;
   if (!dbConfigured) return <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4"><div className="bg-white rounded-2xl shadow-xl p-8 max-w-md w-full text-center"><AlertCircle className="w-16 h-16 text-yellow-500 mx-auto mb-4" /><h2 className="text-xl font-bold mb-2">Configuration requise</h2><p className="text-gray-500 mb-4">Exécutez le script SQL dans Supabase.</p></div></div>;
   if (showResetPassword) return <ResetPasswordPage onComplete={handleResetComplete} />;
-  if (error) return <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4"><div className="bg-white rounded-2xl shadow-xl p-8 max-w-md w-full text-center"><AlertCircle className="w-16 h-16 text-red-500 mx-auto mb-4" /><h2 className="text-xl font-bold mb-2">Erreur</h2><p className="text-gray-500 mb-4">{error}</p><button onClick={() => window.location.reload()} className="px-6 py-3 bg-emerald-500 text-white rounded-xl font-semibold hover:bg-emerald-600">Réessayer</button></div></div>;
+  if (error) return (
+    <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
+      <div className="bg-white rounded-2xl shadow-xl p-8 max-w-md w-full text-center">
+        <AlertCircle className="w-16 h-16 text-red-500 mx-auto mb-4" />
+        <h2 className="text-xl font-bold mb-2">Erreur</h2>
+        <p className="text-gray-500 mb-6">{error}</p>
+        <div className="flex flex-col gap-3">
+          <button onClick={() => { setError(null); window.history.replaceState(null, '', window.location.pathname); }} 
+            className="px-6 py-3 bg-emerald-500 text-white rounded-xl font-semibold hover:bg-emerald-600">
+            Retour à la connexion
+          </button>
+          <button onClick={() => window.location.reload()} 
+            className="px-6 py-3 border border-gray-200 text-gray-700 rounded-xl font-medium hover:bg-gray-50">
+            Réessayer
+          </button>
+        </div>
+      </div>
+    </div>
+  );
   if (!session) return <LoginPage />;
 
   return (
