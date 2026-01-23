@@ -1260,11 +1260,23 @@ function DailyPage({ orangePrices, canalPrices, profile }) {
   // Get today's date info
   const today = new Date();
   const todayStr = today.toISOString().split('T')[0];
+  const yesterday = new Date(today);
+  yesterday.setDate(today.getDate() - 1);
+  const yesterdayStr = yesterday.toISOString().split('T')[0];
   const weekStart = new Date(today);
   weekStart.setDate(today.getDate() - today.getDay() + 1);
   const weekStartStr = weekStart.toISOString().split('T')[0];
   const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
   const monthStartStr = monthStart.toISOString().split('T')[0];
+
+  // Calculer la dernière date de données disponible
+  const lastDataDate = useMemo(() => {
+    const allDates = [
+      ...dailyData.orange.map(d => d.date),
+      ...dailyData.canal.map(d => d.date)
+    ].filter(Boolean).sort((a, b) => b.localeCompare(a));
+    return allDates[0] || null;
+  }, [dailyData]);
 
   // Filter data based on period and profile aliases
   const filteredData = useMemo(() => {
@@ -1288,6 +1300,9 @@ function DailyPage({ orangePrices, canalPrices, profile }) {
     if (periodFilter === 'today') {
       orange = orange.filter(d => d.date === todayStr);
       canal = canal.filter(d => d.date === todayStr);
+    } else if (periodFilter === 'yesterday') {
+      orange = orange.filter(d => d.date === yesterdayStr);
+      canal = canal.filter(d => d.date === yesterdayStr);
     } else if (periodFilter === 'week') {
       orange = orange.filter(d => d.date >= weekStartStr && d.date <= todayStr);
       canal = canal.filter(d => d.date >= weekStartStr && d.date <= todayStr);
@@ -1298,7 +1313,7 @@ function DailyPage({ orangePrices, canalPrices, profile }) {
     // 'month' shows all data (current month)
     
     return { orange, canal };
-  }, [dailyData, selectedTech, periodFilter, isDirection, profile, todayStr, weekStartStr, dateFrom, dateTo]);
+  }, [dailyData, selectedTech, periodFilter, isDirection, profile, todayStr, yesterdayStr, weekStartStr, dateFrom, dateTo]);
 
   // Calculate stats for each period
   const calculateStats = (data) => {
@@ -1489,6 +1504,7 @@ function DailyPage({ orangePrices, canalPrices, profile }) {
 
   const getPeriodLabel = () => {
     if (periodFilter === 'today') return "Aujourd'hui";
+    if (periodFilter === 'yesterday') return 'Hier';
     if (periodFilter === 'week') return 'Cette semaine';
     if (periodFilter === 'custom' && dateFrom && dateTo) {
       const from = new Date(dateFrom).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' });
@@ -1544,8 +1560,8 @@ function DailyPage({ orangePrices, canalPrices, profile }) {
                 </span>
               </div>
               <p className={`text-sm ${t.textMuted} mt-0.5`}>
-                {dailyData.lastUpdate 
-                  ? `Mis à jour ${new Date(dailyData.lastUpdate).toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', hour: '2-digit', minute: '2-digit' })}`
+                {lastDataDate 
+                  ? `Données à jour jusqu'au ${new Date(lastDataDate).toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' })}`
                   : 'Aucune donnée importée'}
               </p>
             </div>
@@ -1555,6 +1571,7 @@ function DailyPage({ orangePrices, canalPrices, profile }) {
             {/* Period selector */}
             <div className={`flex flex-wrap gap-1 p-1 rounded-xl ${t.bgTertiary}`}>
               <PeriodTab id="today" label="Aujourd'hui" active={periodFilter === 'today'} />
+              <PeriodTab id="yesterday" label="Hier" active={periodFilter === 'yesterday'} />
               <PeriodTab id="week" label="Cette semaine" active={periodFilter === 'week'} />
               <PeriodTab id="month" label="Ce mois" active={periodFilter === 'month'} />
               <PeriodTab id="custom" label="Personnalisé" active={periodFilter === 'custom'} />
@@ -1905,6 +1922,21 @@ function MainDashboard() {
       ]);
       setProfiles(profs); setOrangePrices(oPrices); setCanalPrices(cPrices);
       setOrangeInterventions(oInter); setCanalInterventions(cInter); setImportsData(imps); setPeriods(pers);
+      
+      // Auto-select current month on first load if no period selected
+      if (!initialLoadDone.current && !selectedYear && pers.years?.length > 0) {
+        const currentYear = new Date().getFullYear();
+        const currentMonth = new Date().getMonth() + 1;
+        // Use current year if available, otherwise latest year
+        const yearToSelect = pers.years.includes(currentYear) ? currentYear : pers.years[0];
+        const availableMonths = pers.monthsByYear?.[yearToSelect] || [];
+        // Use current month if available, otherwise latest month
+        const monthToSelect = availableMonths.includes(currentMonth) ? currentMonth : availableMonths[availableMonths.length - 1];
+        if (yearToSelect && monthToSelect) {
+          setSelectedYear(yearToSelect);
+          setSelectedMonth(monthToSelect);
+        }
+      }
     } catch (err) { console.error('Error loading data:', err); } finally { setLoading(false); }
   }, [selectedYear, selectedMonth, selectedWeek, viewMode]);
 
