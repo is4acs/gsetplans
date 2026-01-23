@@ -1566,8 +1566,8 @@ function DailyPage({ orangePrices, canalPrices, profile }) {
           <div className="flex flex-wrap items-center gap-3">
             {/* Period selector */}
             <div className={`flex flex-wrap gap-1 p-1 rounded-xl ${t.bgTertiary}`}>
-              <PeriodTab id="today" label="Aujourd'hui" active={periodFilter === 'today'} />
               <PeriodTab id="yesterday" label="Hier" active={periodFilter === 'yesterday'} />
+              <PeriodTab id="today" label="Aujourd'hui" active={periodFilter === 'today'} />
               <PeriodTab id="week" label="Cette semaine" active={periodFilter === 'week'} />
               <PeriodTab id="month" label="Ce mois" active={periodFilter === 'month'} />
               <PeriodTab id="custom" label="Personnalisé" active={periodFilter === 'custom'} />
