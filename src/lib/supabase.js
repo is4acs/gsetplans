@@ -340,20 +340,20 @@ export async function getDailyTracking(filters = {}) {
 }
 
 export async function insertDailyTracking(records) {
-  // Insert simple (la contrainte UNIQUE évite les doublons si elle existe)
+  // Upsert pour mettre à jour les enregistrements existants
+  // La clé unique est (technicien, date, type) - ordre de la contrainte SQL
   const { data, error } = await supabase
     .from('daily_tracking')
-    .insert(records)
+    .upsert(records, { 
+      onConflict: 'technicien,date,type',
+      ignoreDuplicates: false // Force la mise à jour
+    })
     .select();
   if (error) {
-    // Si erreur de doublon, on ignore
-    if (error.code === '23505') {
-      console.log('Certains enregistrements existaient déjà, ignorés');
-      return [];
-    }
+    console.error('Erreur upsert daily_tracking:', error);
     throw error;
   }
-  return data;
+  return data || [];
 }
 
 export async function deleteDailyTrackingByPeriode(periode) {
