@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, createContext, useContext, useCallback, useRef } from 'react';
+import { useState, useEffect, useMemo, createContext, useContext, useCallback, useRef, useTransition } from 'react';
 import { 
   Upload, LayoutDashboard, LogOut, Menu, X, Settings, Sun, Moon,
   TrendingUp, Euro, Calendar, BarChart3, PieChart, User, Plus, Trash2, 
@@ -21,6 +21,21 @@ import {
   getImports, createImport, deleteImport, getAvailablePeriods, getAvailableTechNames,
   getDailyTracking, insertDailyTracking, getDailyImports, createDailyImport, deleteDailyImport
 } from './lib/supabase';
+
+// === LOGO COMPONENT ===
+// Pour utiliser votre logo: placez-le dans /public/logo.png et décommentez la ligne img
+function Logo({ size = 'md', className = '' }) {
+  const sizes = { sm: 'w-8 h-8', md: 'w-10 h-10', lg: 'w-16 h-16' };
+  // Option 1: Votre logo (décommenter quand uploadé dans /public/logo.png)
+  // return <img src="/logo.png" alt="GSET" className={`${sizes[size]} ${className} object-contain`} />;
+  
+  // Option 2: Placeholder avec texte GSET (supprimer quand le logo est uploadé)
+  return (
+    <div className={`${sizes[size]} ${className} bg-gradient-to-br from-emerald-500 to-teal-600 rounded-xl flex items-center justify-center shadow-lg flex-shrink-0`}>
+      <span className="text-white font-bold text-xs">GSET</span>
+    </div>
+  );
+}
 
 // === CONTEXTS ===
 const ThemeContext = createContext();
@@ -179,9 +194,7 @@ function ResetPasswordPage({ onComplete }) {
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-emerald-50 via-white to-teal-50 p-4">
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
-          <div className="w-16 h-16 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg">
-            <Zap className="w-8 h-8 text-white" />
-          </div>
+          <Logo size="lg" className="mx-auto mb-4" />
           <h1 className="text-2xl font-bold text-gray-900">GSET PLANS</h1>
         </div>
         <div className="bg-white rounded-3xl shadow-2xl overflow-hidden">
@@ -280,7 +293,7 @@ function LoginPage() {
         <div className="p-8 bg-gradient-to-br from-emerald-500 to-teal-600">
           <div className="flex justify-between items-start">
             <div className="flex items-center gap-3">
-              <div className="w-12 h-12 bg-white/20 backdrop-blur rounded-2xl flex items-center justify-center"><Zap className="w-6 h-6 text-white" /></div>
+              <Logo size="md" className="bg-white/20 backdrop-blur" />
               <div><h1 className="text-2xl font-bold text-white">GSET PLANS</h1><p className="text-emerald-100 text-sm">FTTH D3 Guyane</p></div>
             </div>
             <button onClick={() => setDarkMode(!darkMode)} className="p-2 rounded-xl bg-white/10 hover:bg-white/20">
@@ -2010,6 +2023,7 @@ function MainDashboard() {
   const [view, setView] = useState('dashboard');
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [loading, setLoading] = useState(true);
+  const [isPending, startTransition] = useTransition();
   const [profiles, setProfiles] = useState([]);
   const [orangePrices, setOrangePrices] = useState([]);
   const [canalPrices, setCanalPrices] = useState([]);
@@ -2037,15 +2051,22 @@ function MainDashboard() {
   }, []);
 
   // Chargement initial complet
-  const loadData = useCallback(async () => {
-    setLoading(true);
+  const loadData = useCallback(async (fullRefresh = false) => {
+    if (!fullRefresh) setLoading(true);
     try {
       const [profs, oPrices, cPrices, imps, pers] = await Promise.all([
         getAllProfiles(), getOrangePrices(), getCanalPrices(),
         getImports(), getAvailablePeriods(),
       ]);
-      setProfiles(profs); setOrangePrices(oPrices); setCanalPrices(cPrices);
-      setImportsData(imps); setPeriods(pers);
+      
+      // Utiliser startTransition pour les mises à jour non-urgentes
+      startTransition(() => {
+        setProfiles(profs);
+        setOrangePrices(oPrices);
+        setCanalPrices(cPrices);
+        setImportsData(imps);
+        setPeriods(pers);
+      });
       
       // Auto-select current/latest month on first load
       if (!periodInitialized.current && pers.years?.length > 0) {
@@ -2072,6 +2093,18 @@ function MainDashboard() {
         await loadInterventions(selectedYear, selectedMonth, selectedWeek, viewMode);
       }
     } catch (err) { console.error('Error loading data:', err); } finally { setLoading(false); }
+  }, [selectedYear, selectedMonth, selectedWeek, viewMode, loadInterventions]);
+
+  // Refresh rapide après import (sans recharger tout)
+  const refreshAfterImport = useCallback(async () => {
+    try {
+      const [imps, pers] = await Promise.all([getImports(), getAvailablePeriods()]);
+      startTransition(() => {
+        setImportsData(imps);
+        setPeriods(pers);
+      });
+      await loadInterventions(selectedYear, selectedMonth, selectedWeek, viewMode);
+    } catch (err) { console.error('Error refreshing:', err); }
   }, [selectedYear, selectedMonth, selectedWeek, viewMode, loadInterventions]);
 
   // Premier chargement
@@ -2134,7 +2167,7 @@ function MainDashboard() {
       {/* Sidebar Desktop */}
       <aside className={`hidden lg:flex ${sidebarOpen ? 'w-64' : 'w-20'} ${t.sidebar} transition-all duration-300 flex-col`}>
         <div className="p-4 flex items-center gap-3">
-          <div className="w-10 h-10 bg-emerald-500 rounded-xl flex items-center justify-center flex-shrink-0"><Zap className="w-5 h-5 text-white" /></div>
+          <Logo size="md" />
           {sidebarOpen && <div><h1 className="font-bold text-white">GSET PLANS</h1><p className="text-xs text-gray-500">FTTH D3 Guyane</p></div>}
         </div>
         <nav className="flex-1 p-3 space-y-1">
@@ -2156,7 +2189,7 @@ function MainDashboard() {
           <div onClick={() => setSidebarOpen(false)} className="absolute inset-0 bg-black/50" />
           <aside className={`absolute inset-y-0 left-0 w-64 ${t.sidebar} flex flex-col shadow-2xl`}>
             <div className="p-4 flex items-center gap-3">
-              <div className="w-10 h-10 bg-emerald-500 rounded-xl flex items-center justify-center flex-shrink-0"><Zap className="w-5 h-5 text-white" /></div>
+              <Logo size="md" />
               <div><h1 className="font-bold text-white">GSET PLANS</h1><p className="text-xs text-gray-500">FTTH D3 Guyane</p></div>
             </div>
             <nav className="flex-1 p-3 space-y-1">
@@ -2181,10 +2214,13 @@ function MainDashboard() {
               {sidebarOpen ? <X className={`w-5 h-5 ${t.textSecondary}`} /> : <Menu className={`w-5 h-5 ${t.textSecondary}`} />}
             </button>
             <h2 className={`text-lg sm:text-xl font-semibold ${t.text} truncate`}>{navItems.find(n => n.id === view)?.label}</h2>
+            {isPending && <LoadingSpinner size="sm" />}
           </div>
           <div className="flex items-center gap-2 sm:gap-3">
             <VisibilityToggle />
-            <button onClick={loadData} className={`p-2 rounded-xl ${t.bgTertiary} ${t.bgHover}`}><RefreshCw className={`w-5 h-5 ${t.textSecondary}`} /></button>
+            <button onClick={loadData} disabled={loading || isPending} className={`p-2 rounded-xl ${t.bgTertiary} ${t.bgHover} ${(loading || isPending) ? 'opacity-50' : ''}`}>
+              <RefreshCw className={`w-5 h-5 ${t.textSecondary} ${(loading || isPending) ? 'animate-spin' : ''}`} />
+            </button>
             <button onClick={() => setTheme(theme === 'light' ? 'dark' : 'light')} className={`p-2 rounded-xl ${t.bgTertiary} ${t.bgHover}`}>
               {theme === 'light' ? <Moon className={`w-5 h-5 ${t.textSecondary}`} /> : <Sun className="w-5 h-5 text-yellow-400" />}
             </button>
@@ -2237,8 +2273,8 @@ function MainDashboard() {
 
           {isDirection && view === 'import' && (
             <div className="space-y-6">
-              <div className={`rounded-2xl p-6 border ${t.card}`}><h3 className={`font-semibold ${t.text} mb-4`}>Importer des données</h3><FileImportSection orangePrices={orangePrices} canalPrices={canalPrices} onImportComplete={loadData} /></div>
-              <div className={`rounded-2xl p-6 border ${t.card}`}><h3 className={`font-semibold ${t.text} mb-4`}>Historique des imports</h3><ImportHistorySection imports={imports} onRefresh={loadData} /></div>
+              <div className={`rounded-2xl p-6 border ${t.card}`}><h3 className={`font-semibold ${t.text} mb-4`}>Importer des données</h3><FileImportSection orangePrices={orangePrices} canalPrices={canalPrices} onImportComplete={refreshAfterImport} /></div>
+              <div className={`rounded-2xl p-6 border ${t.card}`}><h3 className={`font-semibold ${t.text} mb-4`}>Historique des imports</h3><ImportHistorySection imports={imports} onRefresh={refreshAfterImport} /></div>
             </div>
           )}
 
