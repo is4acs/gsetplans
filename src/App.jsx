@@ -4,7 +4,7 @@ import {
   TrendingUp, Euro, Calendar, BarChart3, PieChart, User, Plus, Trash2, 
   Save, ChevronDown, ChevronUp, Filter, Check, Zap, Mail, Lock, Users,
   KeyRound, AlertCircle, Eye, EyeOff, Loader2, RefreshCw, Trophy,
-  Target, Award, TrendingDown, Activity, Crown, CalendarDays,
+  Target, Award, TrendingDown, Activity, Crown, CalendarDays, FileText,
   CheckCircle, XCircle, Clock, AlertTriangle, ShieldCheck, ShieldAlert, UserCog
 } from 'lucide-react';
 import {
@@ -23,18 +23,10 @@ import {
 } from './lib/supabase';
 
 // === LOGO COMPONENT ===
-// Pour utiliser votre logo: placez-le dans /public/logo.png et décommentez la ligne img
+// Logo GSET Caraïbes intégré
 function Logo({ size = 'md', className = '' }) {
   const sizes = { sm: 'w-8 h-8', md: 'w-10 h-10', lg: 'w-16 h-16' };
-  // Option 1: Votre logo (décommenter quand uploadé dans /public/logo.png)
-  // return <img src="/logo.png" alt="GSET" className={`${sizes[size]} ${className} object-contain`} />;
-  
-  // Option 2: Placeholder avec texte GSET (supprimer quand le logo est uploadé)
-  return (
-    <div className={`${sizes[size]} ${className} bg-gradient-to-br from-emerald-500 to-teal-600 rounded-xl flex items-center justify-center shadow-lg flex-shrink-0`}>
-      <span className="text-white font-bold text-xs">GSET</span>
-    </div>
-  );
+  return <img src="/logo.svg" alt="GSET Caraïbes" className={`${sizes[size]} ${className} object-contain rounded-xl`} />;
 }
 
 // === CONTEXTS ===
@@ -1304,7 +1296,8 @@ function DailyPage({ orangePrices, canalPrices, profile }) {
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
   const [showAllDetails, setShowAllDetails] = useState(false);
-  const isDirection = profile?.role === 'dir';
+  const isDirection = profile?.role === 'dir' || profile?.role === 'superadmin';
+  const isSuperAdmin = profile?.role === 'superadmin';
 
   // Charger les données depuis Supabase
   const loadDailyData = useCallback(async () => {
@@ -1354,24 +1347,45 @@ function DailyPage({ orangePrices, canalPrices, profile }) {
     loadDailyData();
   }, [loadDailyData]);
 
-  // Calculate average prices - ST for admin, Tech for technicians
+  // Calculate average prices - ST for superadmin, GSET for direction, Tech for technicians
   const avgPrices = useMemo(() => {
+    // Prix moyens GSET (facturation client)
+    const orangeGsetAvg = orangePrices.length > 0 
+      ? orangePrices.reduce((s, p) => s + (p.gset_price || 0), 0) / orangePrices.length 
+      : 85;
+    const canalGsetAvg = canalPrices.length > 0 
+      ? canalPrices.reduce((s, p) => s + (p.gset_price || 0), 0) / canalPrices.length 
+      : 250;
+    
+    // Prix moyens ST (facturation Orange/Canal vers GSET)
+    const orangeStAvg = orangePrices.length > 0 
+      ? orangePrices.reduce((s, p) => s + (p.montant_st || p.gset_price || 0), 0) / orangePrices.length 
+      : 100;
+    const canalStAvg = canalPrices.length > 0 
+      ? canalPrices.reduce((s, p) => s + (p.montant_st || p.gset_price || 0), 0) / canalPrices.length 
+      : 300;
+    
+    // Prix moyens Tech (paiement techniciens)
+    const orangeTechAvg = orangePrices.length > 0 
+      ? orangePrices.reduce((s, p) => s + (p.tech_price || 0), 0) / orangePrices.length 
+      : 45;
+    const canalTechAvg = canalPrices.length > 0 
+      ? canalPrices.reduce((s, p) => s + (p.tech_price || 0), 0) / canalPrices.length 
+      : 120;
+    
     if (isDirection) {
-      const orangeAvg = orangePrices.length > 0 
-        ? orangePrices.reduce((s, p) => s + (p.gset_price || 0), 0) / orangePrices.length 
-        : 85;
-      const canalAvg = canalPrices.length > 0 
-        ? canalPrices.reduce((s, p) => s + (p.gset_price || 0), 0) / canalPrices.length 
-        : 250;
-      return { orange: orangeAvg, canal: canalAvg };
+      return { 
+        orange: orangeGsetAvg, 
+        canal: canalGsetAvg,
+        // Prix ST pour Super Admin
+        orangeSt: orangeStAvg,
+        canalSt: canalStAvg,
+        // Prix Tech pour calcul marge
+        orangeTech: orangeTechAvg,
+        canalTech: canalTechAvg
+      };
     } else {
-      const orangeAvg = orangePrices.length > 0 
-        ? orangePrices.reduce((s, p) => s + (p.tech_price || 0), 0) / orangePrices.length 
-        : 45;
-      const canalAvg = canalPrices.length > 0 
-        ? canalPrices.reduce((s, p) => s + (p.tech_price || 0), 0) / canalPrices.length 
-        : 120;
-      return { orange: orangeAvg, canal: canalAvg };
+      return { orange: orangeTechAvg, canal: canalTechAvg };
     }
   }, [orangePrices, canalPrices, isDirection]);
 
@@ -1451,10 +1465,26 @@ function DailyPage({ orangePrices, canalPrices, profile }) {
     const canalReport = data.canal.reduce((s, d) => s + (d.otReportes || 0), 0);
     const orangeRevenu = orangeOK * avgPrices.orange;
     const canalRevenu = canalOK * avgPrices.canal;
+    
+    // Calculs supplémentaires pour Super Admin (prix ST et marges)
+    const orangeStRevenu = isDirection && avgPrices.orangeSt ? orangeOK * avgPrices.orangeSt : 0;
+    const canalStRevenu = isDirection && avgPrices.canalSt ? canalOK * avgPrices.canalSt : 0;
+    const orangeTechCost = isDirection && avgPrices.orangeTech ? orangeOK * avgPrices.orangeTech : 0;
+    const canalTechCost = isDirection && avgPrices.canalTech ? canalOK * avgPrices.canalTech : 0;
+    const orangeMarge = orangeStRevenu - orangeTechCost;
+    const canalMarge = canalStRevenu - canalTechCost;
+    
     return {
-      orange: { ok: orangeOK, nok: orangeNOK, report: orangeReport, revenu: orangeRevenu },
-      canal: { ok: canalOK, nok: canalNOK, report: canalReport, revenu: canalRevenu },
-      total: { ok: orangeOK + canalOK, nok: orangeNOK + canalNOK, report: orangeReport + canalReport, revenu: orangeRevenu + canalRevenu }
+      orange: { ok: orangeOK, nok: orangeNOK, report: orangeReport, revenu: orangeRevenu, stRevenu: orangeStRevenu, marge: orangeMarge },
+      canal: { ok: canalOK, nok: canalNOK, report: canalReport, revenu: canalRevenu, stRevenu: canalStRevenu, marge: canalMarge },
+      total: { 
+        ok: orangeOK + canalOK, 
+        nok: orangeNOK + canalNOK, 
+        report: orangeReport + canalReport, 
+        revenu: orangeRevenu + canalRevenu,
+        stRevenu: orangeStRevenu + canalStRevenu,
+        marge: orangeMarge + canalMarge
+      }
     };
   };
 
@@ -1832,6 +1862,73 @@ function DailyPage({ orangePrices, canalPrices, profile }) {
               />
             </div>
           </div>
+          
+          {/* Section Super Admin - Prix ST et Marges */}
+          {isSuperAdmin && (
+            <div className={`rounded-2xl border-2 border-amber-500/30 ${t.card} p-6`}>
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center">
+                  <Crown className="w-5 h-5 text-white" />
+                </div>
+                <div>
+                  <h3 className={`font-semibold ${t.text}`}>Vue Super Admin</h3>
+                  <p className={`text-xs ${t.textMuted}`}>Prix ST Orange/Canal+ et marges GSET</p>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                {/* Revenu ST Total */}
+                <div className={`${t.bgTertiary} rounded-xl p-4 border ${t.border}`}>
+                  <div className="flex items-center gap-2 mb-2">
+                    <FileText className="w-4 h-4 text-amber-500" />
+                    <span className={`text-xs font-medium ${t.textMuted}`}>Revenu ST Total</span>
+                  </div>
+                  <p className="text-2xl font-bold text-amber-500">
+                    {showAmounts ? `${stats.total.stRevenu.toLocaleString('fr-FR', { maximumFractionDigits: 0 })}€` : '••••€'}
+                  </p>
+                </div>
+                {/* Marge GSET */}
+                <div className={`${t.bgTertiary} rounded-xl p-4 border ${t.border}`}>
+                  <div className="flex items-center gap-2 mb-2">
+                    <TrendingUp className="w-4 h-4 text-emerald-500" />
+                    <span className={`text-xs font-medium ${t.textMuted}`}>Marge GSET</span>
+                  </div>
+                  <p className={`text-2xl font-bold ${stats.total.marge >= 0 ? 'text-emerald-500' : 'text-red-500'}`}>
+                    {showAmounts ? `${stats.total.marge.toLocaleString('fr-FR', { maximumFractionDigits: 0 })}€` : '••••€'}
+                  </p>
+                </div>
+                {/* ST Orange */}
+                <div className={`${t.bgTertiary} rounded-xl p-4 border ${t.border}`}>
+                  <div className="flex items-center gap-2 mb-2">
+                    <div className="w-3 h-3 rounded-full bg-orange-500"></div>
+                    <span className={`text-xs font-medium ${t.textMuted}`}>ST Orange</span>
+                  </div>
+                  <p className="text-xl font-bold text-orange-500">
+                    {showAmounts ? `${stats.orange.stRevenu.toLocaleString('fr-FR', { maximumFractionDigits: 0 })}€` : '••••€'}
+                  </p>
+                  <p className={`text-xs ${t.textMuted} mt-1`}>
+                    Marge: {showAmounts ? `${stats.orange.marge.toLocaleString('fr-FR', { maximumFractionDigits: 0 })}€` : '••••'}
+                  </p>
+                </div>
+                {/* ST Canal+ */}
+                <div className={`${t.bgTertiary} rounded-xl p-4 border ${t.border}`}>
+                  <div className="flex items-center gap-2 mb-2">
+                    <div className="w-3 h-3 rounded-full bg-purple-500"></div>
+                    <span className={`text-xs font-medium ${t.textMuted}`}>ST Canal+</span>
+                  </div>
+                  <p className="text-xl font-bold text-purple-500">
+                    {showAmounts ? `${stats.canal.stRevenu.toLocaleString('fr-FR', { maximumFractionDigits: 0 })}€` : '••••€'}
+                  </p>
+                  <p className={`text-xs ${t.textMuted} mt-1`}>
+                    Marge: {showAmounts ? `${stats.canal.marge.toLocaleString('fr-FR', { maximumFractionDigits: 0 })}€` : '••••'}
+                  </p>
+                </div>
+              </div>
+              <p className={`text-xs ${t.textMuted} mt-3`}>
+                * Prix ST moyens: {avgPrices.orangeSt?.toFixed(0) || 0}€/Orange • {avgPrices.canalSt?.toFixed(0) || 0}€/Canal+ | 
+                Coût Tech: {avgPrices.orangeTech?.toFixed(0) || 0}€/Orange • {avgPrices.canalTech?.toFixed(0) || 0}€/Canal+
+              </p>
+            </div>
+          )}
           
           {/* Discreet note about average pricing */}
           <p className={`text-xs ${t.textMuted} text-right -mt-4`}>
