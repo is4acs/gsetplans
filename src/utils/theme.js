@@ -1,0 +1,42 @@
+// === THEME STYLES ===
+
+export const themes = {
+  light: {
+    bg: 'bg-gray-50',
+    bgSecondary: 'bg-white',
+    bgTertiary: 'bg-gray-100',
+    bgHover: 'hover:bg-gray-50',
+    text: 'text-gray-900',
+    textSecondary: 'text-gray-600',
+    textMuted: 'text-gray-400',
+    border: 'border-gray-200',
+    borderLight: 'border-gray-100',
+    input: 'bg-white border-gray-200 focus:border-emerald-500',
+    card: 'bg-white border-gray-100 shadow-sm',
+    cardHover: 'hover:shadow-md',
+    accentLight: 'bg-emerald-50 text-emerald-700',
+    sidebar: 'bg-gray-900',
+    sidebarText: 'text-gray-300',
+    sidebarHover: 'hover:bg-gray-800',
+    sidebarActive: 'bg-emerald-500/20 text-emerald-400',
+  },
+  dark: {
+    bg: 'bg-gray-950',
+    bgSecondary: 'bg-gray-900',
+    bgTertiary: 'bg-gray-800',
+    bgHover: 'hover:bg-gray-800',
+    text: 'text-gray-100',
+    textSecondary: 'text-gray-400',
+    textMuted: 'text-gray-500',
+    border: 'border-gray-800',
+    borderLight: 'border-gray-800/50',
+    input: 'bg-gray-800 border-gray-700 focus:border-emerald-500',
+    card: 'bg-gray-900 border-gray-800 shadow-lg',
+    cardHover: 'hover:border-gray-700',
+    accentLight: 'bg-emerald-500/10 text-emerald-400',
+    sidebar: 'bg-black',
+    sidebarText: 'text-gray-400',
+    sidebarHover: 'hover:bg-gray-900',
+    sidebarActive: 'bg-emerald-500/20 text-emerald-400',
+  }
+};
