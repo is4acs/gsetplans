@@ -3,7 +3,6 @@ import { createClient } from '@supabase/supabase-js';
 const supabaseUrl = 'https://wwaflcfflbzfuqmxstbz.supabase.co';
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Ind3YWZsY2ZmbGJ6ZnVxbXhzdGJ6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjkwMjk1NjcsImV4cCI6MjA4NDYwNTU2N30.NFBfqMdATmOt8YnDg0JcXkV8Y4AwN87dlX8wtN70V2Y';
 
-// Create Supabase client with robust config
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {
     autoRefreshToken: true,
@@ -18,7 +17,6 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   }
 });
 
-// Helper: Check if error is an abort error (should be ignored)
 const isAbortError = (err) => {
   if (!err) return false;
   const msg = err.message || err.toString();
@@ -340,13 +338,11 @@ export async function getDailyTracking(filters = {}) {
 }
 
 export async function insertDailyTracking(records) {
-  // Upsert pour mettre à jour les enregistrements existants
-  // La clé unique est (technicien, date, type) - ordre de la contrainte SQL
   const { data, error } = await supabase
     .from('daily_tracking')
     .upsert(records, { 
       onConflict: 'technicien,date,type',
-      ignoreDuplicates: false // Force la mise à jour
+      ignoreDuplicates: false
     })
     .select();
   if (error) {
@@ -393,9 +389,7 @@ export async function createDailyImport(importData) {
 }
 
 export async function deleteDailyImport(id, periode) {
-  // Supprimer d'abord les données associées
   await deleteDailyTrackingByPeriode(periode);
-  // Puis supprimer l'import
   const { error } = await supabase
     .from('daily_imports')
     .delete()
@@ -415,5 +409,143 @@ export async function getDailyTrackingTechniciens() {
   } catch (err) {
     if (isAbortError(err)) return [];
     return [];
+  }
+}
+
+// ========== REJETS (REJECTIONS) ==========
+
+export async function getRejets(filters = {}) {
+  try {
+    let query = supabase.from('rejets').select('*');
+    
+    if (filters.prenom_technicien) query = query.eq('prenom_technicien', filters.prenom_technicien);
+    if (filters.periode) query = query.eq('periode', filters.periode);
+    if (filters.semaine) query = query.eq('semaine', filters.semaine);
+    if (filters.year) query = query.eq('year', filters.year);
+    if (filters.month) query = query.eq('month', filters.month);
+    if (filters.statut) query = query.eq('statut', filters.statut);
+    
+    const { data, error } = await query.order('date_rejet', { ascending: false });
+    if (error && !isAbortError(error)) {
+      console.error('Error fetching rejets:', error);
+      return [];
+    }
+    return data || [];
+  } catch (err) {
+    if (isAbortError(err)) return [];
+    console.error('Error fetching rejets:', err);
+    return [];
+  }
+}
+
+export async function insertRejets(records) {
+  const { data, error } = await supabase
+    .from('rejets')
+    .insert(records)
+    .select();
+  if (error) {
+    console.error('Erreur insert rejets:', error);
+    throw error;
+  }
+  return data || [];
+}
+
+export async function updateRejetStatut(id, statut) {
+  const { data, error } = await supabase
+    .from('rejets')
+    .update({ statut, updated_at: new Date().toISOString() })
+    .eq('id', id)
+    .select()
+    .single();
+  if (error) throw error;
+  return data;
+}
+
+export async function deleteRejetsByPeriode(periode) {
+  const { error } = await supabase
+    .from('rejets')
+    .delete()
+    .eq('periode', periode);
+  if (error) throw error;
+}
+
+export async function getRejetsImports() {
+  try {
+    const { data, error } = await supabase
+      .from('rejets_imports')
+      .select('*')
+      .order('created_at', { ascending: false });
+    if (error && !isAbortError(error)) {
+      console.error('Error fetching rejets imports:', error);
+      return [];
+    }
+    return data || [];
+  } catch (err) {
+    if (isAbortError(err)) return [];
+    console.error('Error fetching rejets imports:', err);
+    return [];
+  }
+}
+
+export async function createRejetsImport(importData) {
+  const { data, error } = await supabase
+    .from('rejets_imports')
+    .insert(importData)
+    .select()
+    .single();
+  if (error) throw error;
+  return data;
+}
+
+export async function deleteRejetsImport(id, periode) {
+  await deleteRejetsByPeriode(periode);
+  const { error } = await supabase
+    .from('rejets_imports')
+    .delete()
+    .eq('id', id);
+  if (error) throw error;
+}
+
+export async function getRejetsTechniciens() {
+  try {
+    const { data, error } = await supabase
+      .from('rejets')
+      .select('prenom_technicien')
+      .order('prenom_technicien');
+    if (error && !isAbortError(error)) return [];
+    const unique = [...new Set((data || []).map(d => d.prenom_technicien))];
+    return unique.sort();
+  } catch (err) {
+    if (isAbortError(err)) return [];
+    return [];
+  }
+}
+
+export async function getRejetsStats() {
+  try {
+    const { data, error } = await supabase
+      .from('rejets')
+      .select('prenom_technicien, statut, year, month');
+    if (error && !isAbortError(error)) return { total: 0, byTech: {}, byStatut: {} };
+    
+    const stats = {
+      total: data?.length || 0,
+      byTech: {},
+      byStatut: { en_attente: 0, traite: 0, conteste: 0 }
+    };
+    
+    (data || []).forEach(r => {
+      if (!stats.byTech[r.prenom_technicien]) {
+        stats.byTech[r.prenom_technicien] = { total: 0, en_attente: 0, traite: 0, conteste: 0 };
+      }
+      stats.byTech[r.prenom_technicien].total++;
+      stats.byTech[r.prenom_technicien][r.statut || 'en_attente']++;
+      stats.byStatut[r.statut || 'en_attente']++;
+    });
+    
+    return stats;
+  } catch (err) {
+    if (isAbortError(err)) return { total: 0, byTech: {}, byStatut: {} };
+    return { total: 0, byTech: {}, byStatut: {} };
   }
 }
