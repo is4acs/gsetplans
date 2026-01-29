@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
+import { isAbortError } from '../utils/helpers';
 
 const supabaseUrl = 'https://wwaflcfflbzfuqmxstbz.supabase.co';
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Ind3YWZsY2ZmbGJ6ZnVxbXhzdGJ6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjkwMjk1NjcsImV4cCI6MjA4NDYwNTU2N30.NFBfqMdATmOt8YnDg0JcXkV8Y4AwN87dlX8wtN70V2Y';
@@ -16,12 +17,6 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
     schema: 'public'
   }
 });
-
-const isAbortError = (err) => {
-  if (!err) return false;
-  const msg = err.message || err.toString();
-  return msg.includes('abort') || msg.includes('AbortError') || msg.includes('signal') || err.name === 'AbortError';
-};
 
 export const isSupabaseConfigured = () => supabaseUrl && supabaseAnonKey && supabaseUrl.includes('supabase.co');
 
@@ -112,59 +107,11 @@ export async function updateProfile(userId, updates) {
   return data;
 }
 
-// ========== PRICES ==========
+// ========== GENERIC HELPERS ==========
 
-export async function getOrangePrices() {
+async function getInterventions(table, filters = {}) {
   try {
-    const { data, error } = await supabase.from('orange_prices').select('*').order('code');
-    if (error && !isAbortError(error)) {
-      console.error('Error fetching orange prices:', error);
-      return [];
-    }
-    return data || [];
-  } catch (err) {
-    if (isAbortError(err)) return [];
-    console.error('Error fetching orange prices:', err);
-    return [];
-  }
-}
-
-export async function updateOrangePrice(code, gsetPrice, techPrice) {
-  const { data, error } = await supabase.from('orange_prices')
-    .upsert({ code, gset_price: gsetPrice, tech_price: techPrice, updated_at: new Date().toISOString() }, { onConflict: 'code' })
-    .select().single();
-  if (error) throw error;
-  return data;
-}
-
-export async function getCanalPrices() {
-  try {
-    const { data, error } = await supabase.from('canal_prices').select('*').order('code');
-    if (error && !isAbortError(error)) {
-      console.error('Error fetching canal prices:', error);
-      return [];
-    }
-    return data || [];
-  } catch (err) {
-    if (isAbortError(err)) return [];
-    console.error('Error fetching canal prices:', err);
-    return [];
-  }
-}
-
-export async function updateCanalPrice(code, gsetPrice, techPrice) {
-  const { data, error } = await supabase.from('canal_prices')
-    .upsert({ code, gset_price: gsetPrice, tech_price: techPrice, updated_at: new Date().toISOString() }, { onConflict: 'code' })
-    .select().single();
-  if (error) throw error;
-  return data;
-}
-
-// ========== INTERVENTIONS ==========
-
-export async function getOrangeInterventions(filters = {}) {
-  try {
-    let query = supabase.from('orange_interventions').select('*');
+    let query = supabase.from(table).select('*');
     if (filters.periode) query = query.eq('periode', filters.periode);
     if (filters.tech) query = query.eq('tech', filters.tech);
     if (filters.year) query = query.eq('year', filters.year);
@@ -172,16 +119,51 @@ export async function getOrangeInterventions(filters = {}) {
     if (filters.week) query = query.eq('week_number', filters.week);
     const { data, error } = await query.order('intervention_date', { ascending: false });
     if (error && !isAbortError(error)) {
-      console.error('Error fetching orange interventions:', error);
+      console.error(`Error fetching ${table}:`, error);
       return [];
     }
     return data || [];
   } catch (err) {
     if (isAbortError(err)) return [];
-    console.error('Error fetching orange interventions:', err);
+    console.error(`Error fetching ${table}:`, err);
     return [];
   }
 }
+
+async function getPrices(table) {
+  try {
+    const { data, error } = await supabase.from(table).select('*').order('code');
+    if (error && !isAbortError(error)) {
+      console.error(`Error fetching ${table}:`, error);
+      return [];
+    }
+    return data || [];
+  } catch (err) {
+    if (isAbortError(err)) return [];
+    console.error(`Error fetching ${table}:`, err);
+    return [];
+  }
+}
+
+async function updatePrice(table, code, gsetPrice, techPrice) {
+  const { data, error } = await supabase.from(table)
+    .upsert({ code, gset_price: gsetPrice, tech_price: techPrice, updated_at: new Date().toISOString() }, { onConflict: 'code' })
+    .select().single();
+  if (error) throw error;
+  return data;
+}
+
+// ========== PRICES (public API) ==========
+
+export const getOrangePrices = () => getPrices('orange_prices');
+export const getCanalPrices = () => getPrices('canal_prices');
+export const updateOrangePrice = (code, gsetPrice, techPrice) => updatePrice('orange_prices', code, gsetPrice, techPrice);
+export const updateCanalPrice = (code, gsetPrice, techPrice) => updatePrice('canal_prices', code, gsetPrice, techPrice);
+
+// ========== INTERVENTIONS (public API) ==========
+
+export const getOrangeInterventions = (filters) => getInterventions('orange_interventions', filters);
+export const getCanalInterventions = (filters) => getInterventions('canal_interventions', filters);
 
 export async function insertOrangeInterventions(interventions) {
   const { data, error } = await supabase.from('orange_interventions').insert(interventions).select();
@@ -192,27 +174,6 @@ export async function insertOrangeInterventions(interventions) {
 export async function deleteOrangeInterventionsByPeriode(periode) {
   const { error } = await supabase.from('orange_interventions').delete().eq('periode', periode);
   if (error) throw error;
-}
-
-export async function getCanalInterventions(filters = {}) {
-  try {
-    let query = supabase.from('canal_interventions').select('*');
-    if (filters.periode) query = query.eq('periode', filters.periode);
-    if (filters.tech) query = query.eq('tech', filters.tech);
-    if (filters.year) query = query.eq('year', filters.year);
-    if (filters.month) query = query.eq('month', filters.month);
-    if (filters.week) query = query.eq('week_number', filters.week);
-    const { data, error } = await query.order('intervention_date', { ascending: false });
-    if (error && !isAbortError(error)) {
-      console.error('Error fetching canal interventions:', error);
-      return [];
-    }
-    return data || [];
-  } catch (err) {
-    if (isAbortError(err)) return [];
-    console.error('Error fetching canal interventions:', err);
-    return [];
-  }
 }
 
 export async function insertCanalInterventions(interventions) {
@@ -317,13 +278,13 @@ export async function getAvailableTechNames() {
 export async function getDailyTracking(filters = {}) {
   try {
     let query = supabase.from('daily_tracking').select('*');
-    
+
     if (filters.technicien) query = query.eq('technicien', filters.technicien);
     if (filters.type) query = query.eq('type', filters.type);
     if (filters.dateFrom) query = query.gte('date', filters.dateFrom);
     if (filters.dateTo) query = query.lte('date', filters.dateTo);
     if (filters.periode) query = query.eq('periode', filters.periode);
-    
+
     const { data, error } = await query.order('date', { ascending: false });
     if (error && !isAbortError(error)) {
       console.error('Error fetching daily tracking:', error);
@@ -340,7 +301,7 @@ export async function getDailyTracking(filters = {}) {
 export async function insertDailyTracking(records) {
   const { data, error } = await supabase
     .from('daily_tracking')
-    .upsert(records, { 
+    .upsert(records, {
       onConflict: 'technicien,date,type',
       ignoreDuplicates: false
     })
@@ -417,14 +378,14 @@ export async function getDailyTrackingTechniciens() {
 export async function getRejets(filters = {}) {
   try {
     let query = supabase.from('rejets').select('*');
-    
+
     if (filters.prenom_technicien) query = query.eq('prenom_technicien', filters.prenom_technicien);
     if (filters.periode) query = query.eq('periode', filters.periode);
     if (filters.semaine) query = query.eq('semaine', filters.semaine);
     if (filters.year) query = query.eq('year', filters.year);
     if (filters.month) query = query.eq('month', filters.month);
     if (filters.statut) query = query.eq('statut', filters.statut);
-    
+
     const { data, error } = await query.order('date_rejet', { ascending: false });
     if (error && !isAbortError(error)) {
       console.error('Error fetching rejets:', error);
@@ -527,13 +488,13 @@ export async function getRejetsStats() {
       .from('rejets')
       .select('prenom_technicien, statut, year, month');
     if (error && !isAbortError(error)) return { total: 0, byTech: {}, byStatut: {} };
-    
+
     const stats = {
       total: data?.length || 0,
       byTech: {},
       byStatut: { en_attente: 0, traite: 0, conteste: 0 }
     };
-    
+
     (data || []).forEach(r => {
       if (!stats.byTech[r.prenom_technicien]) {
         stats.byTech[r.prenom_technicien] = { total: 0, en_attente: 0, traite: 0, conteste: 0 };
@@ -542,7 +503,7 @@ export async function getRejetsStats() {
       stats.byTech[r.prenom_technicien][r.statut || 'en_attente']++;
       stats.byStatut[r.statut || 'en_attente']++;
     });
-    
+
     return stats;
   } catch (err) {
     if (isAbortError(err)) return { total: 0, byTech: {}, byStatut: {} };

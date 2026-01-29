@@ -1,5 +1,7 @@
+import { memo } from 'react';
+
 // Logo GSET Caraïbes
-function Logo({ size = 'md', className = '' }) {
+const Logo = memo(function Logo({ size = 'md', className = '' }) {
   const sizes = {
     sm: 'w-8 h-8',
     md: 'w-10 h-10',
@@ -13,6 +15,6 @@ function Logo({ size = 'md', className = '' }) {
       className={`${sizes[size]} ${className} object-contain rounded-xl`}
     />
   );
-}
+});
 
 export default Logo;

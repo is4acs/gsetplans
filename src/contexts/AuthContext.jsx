@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
 import {
   supabase,
   signIn as supabaseSignIn,
@@ -129,12 +129,12 @@ export function AuthProvider({ children }) {
     };
   }, [checkRecoveryUrl]);
 
-  const signIn = async (email, password) => {
+  const signIn = useCallback(async (email, password) => {
     const data = await supabaseSignIn(email, password);
     return data;
-  };
+  }, []);
 
-  const signOut = async () => {
+  const signOut = useCallback(async () => {
     try {
       await supabaseSignOut();
       setSession(null);
@@ -142,9 +142,9 @@ export function AuthProvider({ children }) {
     } catch (err) {
       console.error(err);
     }
-  };
+  }, []);
 
-  const handleResetComplete = async () => {
+  const handleResetComplete = useCallback(async () => {
     setShowResetPassword(false);
     window.history.replaceState(null, '', window.location.pathname);
     await new Promise(r => setTimeout(r, 500));
@@ -160,14 +160,14 @@ export function AuthProvider({ children }) {
     } catch (e) {
       console.error('Error after password reset:', e);
     }
-  };
+  }, []);
 
-  const clearError = () => {
+  const clearError = useCallback(() => {
     setError(null);
     window.history.replaceState(null, '', window.location.pathname);
-  };
+  }, []);
 
-  const value = {
+  const value = useMemo(() => ({
     session,
     user: session?.user,
     profile,
@@ -179,7 +179,7 @@ export function AuthProvider({ children }) {
     signOut,
     handleResetComplete,
     clearError,
-  };
+  }), [session, profile, loading, error, dbConfigured, showResetPassword, signIn, signOut, handleResetComplete, clearError]);
 
   return (
     <AuthContext.Provider value={value}>

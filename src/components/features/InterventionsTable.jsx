@@ -1,9 +1,9 @@
-import { useState } from 'react';
+import { useState, useCallback, useMemo, memo } from 'react';
 import { useTheme, useAmountVisibility } from '../../contexts';
 import { themes } from '../../utils/theme';
 import { formatDate } from '../../utils/helpers';
 
-function InterventionsTable({
+const InterventionsTable = memo(function InterventionsTable({
   interventions,
   title,
   showTech = true,
@@ -15,9 +15,13 @@ function InterventionsTable({
   const t = themes[theme];
   const [showAll, setShowAll] = useState(false);
   const limit = 20;
-  const displayed = showAll ? interventions : interventions.slice(0, limit);
 
-  const getTechPrice = (inter) => {
+  const displayed = useMemo(
+    () => showAll ? interventions : interventions.slice(0, limit),
+    [showAll, interventions]
+  );
+
+  const getTechPrice = useCallback((inter) => {
     if (inter.source === 'canal') return inter.montant_tech || 0;
     const match = String(inter.articles || '').match(/([A-Z]+\d*)/i);
     if (match && orangePrices) {
@@ -25,7 +29,7 @@ function InterventionsTable({
       if (price) return price.tech_price;
     }
     return inter.montant_st * 0.55;
-  };
+  }, [orangePrices]);
 
   const formatAmount = (amount) => {
     if (!showAmounts) return '••••€';
@@ -114,6 +118,6 @@ function InterventionsTable({
       )}
     </div>
   );
-}
+});
 
 export default InterventionsTable;

@@ -1,7 +1,8 @@
+import { memo } from 'react';
 import { useTheme, useAmountVisibility } from '../../contexts';
 import { themes } from '../../utils/theme';
 
-function StatCard({ icon: Icon, label, value, sub, color, hideable = true }) {
+const StatCard = memo(function StatCard({ icon: Icon, label, value, sub, color, hideable = true }) {
   const { theme } = useTheme();
   const { showAmounts } = useAmountVisibility();
   const t = themes[theme];
@@ -31,6 +32,6 @@ function StatCard({ icon: Icon, label, value, sub, color, hideable = true }) {
       {sub && <p className={`text-xs ${t.textMuted} mt-1`}>{sub}</p>}
     </div>
   );
-}
+});
 
 export default StatCard;
