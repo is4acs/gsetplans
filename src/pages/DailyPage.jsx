@@ -33,33 +33,63 @@ const WEEKS = [
   { value: 4, label: 'S4' },
 ];
 
-// Fonction pour obtenir le numéro de semaine dans le mois
-const getWeekOfMonth = (date) => {
-  const d = new Date(date);
-  const firstDay = new Date(d.getFullYear(), d.getMonth(), 1);
-  const dayOfMonth = d.getDate();
-  const firstDayOfWeek = firstDay.getDay() || 7; // Lundi = 1
-  const week = Math.ceil((dayOfMonth + firstDayOfWeek - 1) / 7);
-  // Limiter à S4 max (les jours au-delà sont inclus dans S4)
-  return Math.min(week, 4);
+// Fonction pour parser une date string YYYY-MM-DD en composants locaux (évite les problèmes UTC)
+const parseDateLocal = (dateStr) => {
+  if (!dateStr) return null;
+  const [year, month, day] = dateStr.split('-').map(Number);
+  return { year, month, day, date: new Date(year, month - 1, day) };
+};
+
+// Fonction pour obtenir la date locale au format YYYY-MM-DD
+const getLocalDateStr = (date = new Date()) => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
+// Fonction pour formater une date string YYYY-MM-DD en format lisible
+const formatDateDisplay = (dateStr) => {
+  const parsed = parseDateLocal(dateStr);
+  if (!parsed) return dateStr;
+  return parsed.date.toLocaleDateString('fr-FR', { weekday: 'short', day: '2-digit', month: 'short' });
+};
+
+// Fonction pour obtenir le numéro de semaine dans le mois (S1-S4)
+// S1 = jours 1-7, S2 = jours 8-14, S3 = jours 15-21, S4 = jours 22-fin du mois
+const getWeekOfMonth = (dateInput) => {
+  let day;
+  if (typeof dateInput === 'string') {
+    const parsed = parseDateLocal(dateInput);
+    day = parsed ? parsed.day : 1;
+  } else {
+    day = new Date(dateInput).getDate();
+  }
+  
+  if (day <= 7) return 1;
+  if (day <= 14) return 2;
+  if (day <= 21) return 3;
+  return 4; // 22-31
 };
 
 // Fonction pour obtenir les dates de début/fin de semaine dans le mois
 const getWeekDateRange = (year, month, weekNum) => {
-  const firstDay = new Date(year, month - 1, 1);
-  const lastDay = new Date(year, month, 0);
-  const firstDayOfWeek = firstDay.getDay() || 7;
+  const lastDayOfMonth = new Date(year, month, 0).getDate();
   
-  let startDay = (weekNum - 1) * 7 - firstDayOfWeek + 2;
-  if (startDay < 1) startDay = 1;
-  
-  let endDay = startDay + 6;
-  if (weekNum === 4) endDay = lastDay.getDate(); // S4 inclut tout jusqu'à la fin du mois
-  if (endDay > lastDay.getDate()) endDay = lastDay.getDate();
+  let startDay, endDay;
+  switch (weekNum) {
+    case 1: startDay = 1; endDay = 7; break;
+    case 2: startDay = 8; endDay = 14; break;
+    case 3: startDay = 15; endDay = 21; break;
+    case 4: startDay = 22; endDay = lastDayOfMonth; break;
+    default: startDay = 1; endDay = lastDayOfMonth;
+  }
   
   return {
     start: new Date(year, month - 1, startDay),
-    end: new Date(year, month - 1, endDay)
+    end: new Date(year, month - 1, Math.min(endDay, lastDayOfMonth)),
+    startDay,
+    endDay: Math.min(endDay, lastDayOfMonth)
   };
 };
 
@@ -139,27 +169,27 @@ function DailyPage({ orangePrices, canalPrices, profile }) {
     return { month: m, year: y };
   }, [selectedMonth, selectedYear]);
 
-  // Filtrage par vue rapide
+  // Filtrage par vue rapide (utilise les dates locales)
   const filterByQuickView = useCallback((data, view) => {
     const now = new Date();
-    const todayStr = now.toISOString().split('T')[0];
+    const todayStr = getLocalDateStr(now);
+    
     const yesterday = new Date(now);
     yesterday.setDate(yesterday.getDate() - 1);
-    const yesterdayStr = yesterday.toISOString().split('T')[0];
+    const yesterdayStr = getLocalDateStr(yesterday);
     
     // Début de la semaine courante (lundi)
     const weekStart = new Date(now);
-    const dayOfWeek = now.getDay() || 7;
+    const dayOfWeek = now.getDay() || 7; // Dimanche = 7
     weekStart.setDate(now.getDate() - dayOfWeek + 1);
-    weekStart.setHours(0, 0, 0, 0);
+    const weekStartStr = getLocalDateStr(weekStart);
     
     // Début du mois courant
-    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    const monthStartStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
 
     return data.filter(d => {
       if (!d.date) return false;
-      const date = new Date(d.date);
-      const dateStr = d.date;
+      const dateStr = d.date; // Format YYYY-MM-DD
       
       switch (view) {
         case 'yesterday':
@@ -167,24 +197,31 @@ function DailyPage({ orangePrices, canalPrices, profile }) {
         case 'today':
           return dateStr === todayStr;
         case 'week':
-          return date >= weekStart && date <= now;
+          return dateStr >= weekStartStr && dateStr <= todayStr;
         case 'month':
         default:
-          return date >= monthStart && date <= now;
+          return dateStr >= monthStartStr && dateStr <= todayStr;
       }
     });
   }, []);
 
-  // Filtrage par mois et semaine
+  // Filtrage par mois et semaine (utilise les dates locales)
   const filterByPeriod = useCallback((data, year, month, week) => {
     return data.filter(d => {
       if (!d.date) return false;
-      const date = new Date(d.date);
-      if (date.getFullYear() !== year || (date.getMonth() + 1) !== month) return false;
+      
+      const parsed = parseDateLocal(d.date);
+      if (!parsed) return false;
+      
+      // Vérifier année et mois
+      if (parsed.year !== year || parsed.month !== month) return false;
+      
+      // Si une semaine est spécifiée, vérifier
       if (week !== null && week > 0) {
-        const weekOfMonth = getWeekOfMonth(date);
+        const weekOfMonth = getWeekOfMonth(d.date);
         return weekOfMonth === week;
       }
+      
       return true;
     });
   }, []);
@@ -325,13 +362,15 @@ function DailyPage({ orangePrices, canalPrices, profile }) {
     const byDay = {};
     // Période actuelle
     [...filteredCurrentPeriod.orange, ...filteredCurrentPeriod.canal].forEach(d => {
-      const day = new Date(d.date).getDate();
+      const parsed = parseDateLocal(d.date);
+      const day = parsed ? parsed.day : 1;
       if (!byDay[day]) byDay[day] = { day, current: 0, prev: 0 };
       byDay[day].current += d.otOK || 0;
     });
     // Période précédente
     [...filteredPrevPeriod.orange, ...filteredPrevPeriod.canal].forEach(d => {
-      const day = new Date(d.date).getDate();
+      const parsed = parseDateLocal(d.date);
+      const day = parsed ? parsed.day : 1;
       if (!byDay[day]) byDay[day] = { day, current: 0, prev: 0 };
       byDay[day].prev += d.otOK || 0;
     });
@@ -347,7 +386,8 @@ function DailyPage({ orangePrices, canalPrices, profile }) {
   const dailyChartData = useMemo(() => {
     const byDate = {};
     [...filteredCurrentPeriod.orange, ...filteredCurrentPeriod.canal].forEach(d => {
-      const day = new Date(d.date).getDate();
+      const parsed = parseDateLocal(d.date);
+      const day = parsed ? parsed.day : 1;
       if (!byDate[day]) byDate[day] = { day, orangeOK: 0, canalOK: 0 };
       if (filteredCurrentPeriod.orange.includes(d)) byDate[day].orangeOK += d.otOK || 0;
       else byDate[day].canalOK += d.otOK || 0;
@@ -793,7 +833,7 @@ function DailyPage({ orangePrices, canalPrices, profile }) {
         </div>
         <div className={`overflow-x-auto ${showAllDetails ? 'max-h-[600px]' : 'max-h-80'}`}>
           <table className="w-full"><thead className={`${t.bgTertiary} sticky top-0`}><tr><th className={`px-4 py-3 text-left text-xs font-semibold ${t.textSecondary} uppercase`}>Date</th>{isDirection && <th className={`px-4 py-3 text-left text-xs font-semibold ${t.textSecondary} uppercase`}>Technicien</th>}<th className={`px-4 py-3 text-left text-xs font-semibold ${t.textSecondary} uppercase`}>Source</th><th className={`px-4 py-3 text-center text-xs font-semibold ${t.textSecondary} uppercase`}>Sem.</th><th className={`px-4 py-3 text-center text-xs font-semibold ${t.textSecondary} uppercase`}>OK</th><th className={`px-4 py-3 text-center text-xs font-semibold ${t.textSecondary} uppercase`}>NOK</th><th className={`px-4 py-3 text-center text-xs font-semibold ${t.textSecondary} uppercase`}>Report</th></tr></thead>
-            <tbody className={`divide-y ${t.border}`}>{[...filteredCurrentPeriod.orange.map(d => ({ ...d, source: 'Orange' })), ...filteredCurrentPeriod.canal.map(d => ({ ...d, source: 'Canal+' }))].sort((a, b) => b.date.localeCompare(a.date) || a.tech.localeCompare(b.tech)).slice(0, showAllDetails ? 500 : 20).map((d, idx) => (<tr key={`${d.source}-${d.tech}-${d.date}-${idx}`} className={t.bgHover}><td className={`px-4 py-2.5 text-sm ${t.text}`}>{new Date(d.date).toLocaleDateString('fr-FR', { weekday: 'short', day: '2-digit', month: 'short' })}</td>{isDirection && <td className={`px-4 py-2.5 text-sm font-medium ${t.text}`}>{d.tech}</td>}<td className="px-4 py-2.5"><span className={`px-2 py-1 rounded-full text-xs font-medium ${d.source === 'Orange' ? 'bg-orange-100 text-orange-700' : 'bg-purple-100 text-purple-700'}`}>{d.source}</span></td><td className="px-4 py-2.5 text-center"><span className={`px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-700`}>S{getWeekOfMonth(d.date)}</span></td><td className="px-4 py-2.5 text-center text-sm font-medium text-emerald-500">{d.otOK || 0}</td><td className="px-4 py-2.5 text-center text-sm font-medium text-red-500">{d.otNOK || 0}</td><td className="px-4 py-2.5 text-center text-sm font-medium text-yellow-500">{d.otReportes || 0}</td></tr>))}</tbody>
+            <tbody className={`divide-y ${t.border}`}>{[...filteredCurrentPeriod.orange.map(d => ({ ...d, source: 'Orange' })), ...filteredCurrentPeriod.canal.map(d => ({ ...d, source: 'Canal+' }))].sort((a, b) => b.date.localeCompare(a.date) || a.tech.localeCompare(b.tech)).slice(0, showAllDetails ? 500 : 20).map((d, idx) => (<tr key={`${d.source}-${d.tech}-${d.date}-${idx}`} className={t.bgHover}><td className={`px-4 py-2.5 text-sm ${t.text}`}>{formatDateDisplay(d.date)}</td>{isDirection && <td className={`px-4 py-2.5 text-sm font-medium ${t.text}`}>{d.tech}</td>}<td className="px-4 py-2.5"><span className={`px-2 py-1 rounded-full text-xs font-medium ${d.source === 'Orange' ? 'bg-orange-100 text-orange-700' : 'bg-purple-100 text-purple-700'}`}>{d.source}</span></td><td className="px-4 py-2.5 text-center"><span className={`px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-700`}>S{getWeekOfMonth(d.date)}</span></td><td className="px-4 py-2.5 text-center text-sm font-medium text-emerald-500">{d.otOK || 0}</td><td className="px-4 py-2.5 text-center text-sm font-medium text-red-500">{d.otNOK || 0}</td><td className="px-4 py-2.5 text-center text-sm font-medium text-yellow-500">{d.otReportes || 0}</td></tr>))}</tbody>
           </table>
         </div>
       </div>
