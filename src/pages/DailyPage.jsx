@@ -392,16 +392,46 @@ function DailyPage({ orangePrices, canalPrices, profile }) {
       const canalData = parseSheet(canalSheet);
       const periode = `${new Date().toLocaleDateString('fr-FR')} - ${file.name}`;
       
-      const supabaseRecords = [
+      // Fonction de déduplication : garde le dernier enregistrement pour chaque clé unique (technicien+date+type)
+      const deduplicateRecords = (records) => {
+        const map = new Map();
+        for (const rec of records) {
+          const key = `${rec.technicien}|${rec.date}|${rec.type}`;
+          const existing = map.get(key);
+          if (!existing) {
+            map.set(key, rec);
+          } else {
+            // Fusionner: prendre les valeurs non-nulles ou additionner si les deux ont des données
+            map.set(key, {
+              ...existing,
+              etat: rec.etat || existing.etat,
+              planifies: Math.max(rec.planifies || 0, existing.planifies || 0),
+              realises: Math.max(rec.realises || 0, existing.realises || 0),
+              ok: Math.max(rec.ok || 0, existing.ok || 0),
+              nok: Math.max(rec.nok || 0, existing.nok || 0),
+              reportes: Math.max(rec.reportes || 0, existing.reportes || 0),
+              taux_reussite: Math.max(rec.taux_reussite || 0, existing.taux_reussite || 0)
+            });
+          }
+        }
+        return Array.from(map.values());
+      };
+      
+      const allRecords = [
         ...orangeData.map(d => ({ type: 'ORANGE', technicien: d.tech, date: d.date, etat: d.etat, planifies: d.otPlanifies, realises: d.otRealise, ok: d.otOK, nok: d.otNOK, reportes: d.otReportes, taux_reussite: d.otRealise > 0 ? d.otOK / d.otRealise : 0, periode })),
         ...canalData.map(d => ({ type: 'CANAL', technicien: d.tech, date: d.date, etat: d.etat, planifies: d.otPlanifies, realises: d.otRealise, ok: d.otOK, nok: d.otNOK, reportes: d.otReportes, taux_reussite: d.otRealise > 0 ? d.otOK / d.otRealise : 0, periode }))
       ];
+      
+      // Dédupliquer pour éviter l'erreur "ON CONFLICT DO UPDATE cannot affect row a second time"
+      const supabaseRecords = deduplicateRecords(allRecords);
+      console.log(`Import: ${allRecords.length} lignes brutes → ${supabaseRecords.length} lignes après déduplication`);
       
       await insertDailyTracking(supabaseRecords);
       const allDates = [...orangeData, ...canalData].map(d => new Date(d.date));
       await createDailyImport({ filename: file.name, total_records: supabaseRecords.length, date_debut: allDates.length > 0 ? new Date(Math.min(...allDates)).toISOString().split('T')[0] : null, date_fin: allDates.length > 0 ? new Date(Math.max(...allDates)).toISOString().split('T')[0] : null, periode });
       await loadDailyData();
-      alert(`Import réussi: ${orangeData.length} lignes Orange, ${canalData.length} lignes Canal+`);
+      const dupCount = allRecords.length - supabaseRecords.length;
+      alert(`Import réussi!\n${supabaseRecords.length} enregistrements importés${dupCount > 0 ? `\n(${dupCount} doublons fusionnés)` : ''}`);
     } catch (err) { console.error('Import error:', err); alert('Erreur lors de l\'import: ' + err.message); }
     finally { setImporting(false); e.target.value = ''; }
   };
