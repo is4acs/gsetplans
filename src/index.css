@@ -2,6 +2,14 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Safe Area CSS Variables for iOS */
+:root {
+  --sat: env(safe-area-inset-top, 0px);
+  --sab: env(safe-area-inset-bottom, 0px);
+  --sal: env(safe-area-inset-left, 0px);
+  --sar: env(safe-area-inset-right, 0px);
+}
+
 * {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
@@ -9,6 +17,53 @@
 
 body {
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+
+/* iOS Native App Styles */
+body.native-app {
+  /* Prevent overscroll bounce */
+  overscroll-behavior: none;
+  -webkit-overflow-scrolling: touch;
+  /* Prevent text selection on double tap */
+  -webkit-user-select: none;
+  user-select: none;
+  /* Prevent pull to refresh */
+  overflow: hidden;
+  position: fixed;
+  width: 100%;
+  height: 100%;
+}
+
+body.native-app #root {
+  overflow: auto;
+  height: 100%;
+  width: 100%;
+}
+
+/* iOS: Improve touch targets */
+body.ios-app button,
+body.ios-app a {
+  /* Minimum touch target size */
+  min-height: 44px;
+  min-width: 44px;
+  /* Remove tap highlight */
+  -webkit-tap-highlight-color: transparent;
+  /* Better touch response */
+  touch-action: manipulation;
+}
+
+/* iOS: Prevent zoom on input focus */
+body.ios-app input,
+body.ios-app select,
+body.ios-app textarea {
+  font-size: 16px !important;
+}
+
+/* iOS: Active states */
+body.ios-app button:active,
+body.ios-app a:active {
+  transform: scale(0.97);
+  opacity: 0.8;
 }
 
 /* Custom scrollbar */

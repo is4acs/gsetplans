@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef, useTransition } from 'react';
 import {
   LayoutDashboard, Upload, Users, Settings, CalendarDays,
   Euro, TrendingUp, PieChart, User, BarChart3, AlertTriangle,
-  XCircle, CheckCircle, Clock, FileWarning, Loader2, Trash2, X, Filter
+  XCircle, CheckCircle, Clock, FileWarning, Loader2, Trash2, X, Filter, LogOut
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { useTheme, useAuth, useAmountVisibility } from '../contexts';
@@ -14,7 +14,7 @@ import {
   getOrangeInterventions, getCanalInterventions,
   getRejets, insertRejets, getRejetsImports, createRejetsImport, deleteRejetsImport, updateRejetStatut
 } from '../lib/supabase';
-import { Sidebar, Header } from '../components/layout';
+import { Sidebar, Header, HeaderIOS, BottomNavigation } from '../components/layout';
 import { StatCard, PeriodSelector } from '../components/ui';
 import {
   InterventionsTable, TechRankingChart, InterventionTypeChart,
@@ -23,11 +23,13 @@ import {
 import UserManagementPage from './UserManagementPage';
 import PriceGridPage from './PriceGridPage';
 import DailyPage from './DailyPage';
+import { usePlatform } from '../hooks';
 
 function MainDashboard() {
   const { theme } = useTheme();
-  const { profile } = useAuth();
+  const { profile, signOut } = useAuth();
   const { showAmounts } = useAmountVisibility();
+  const platform = usePlatform();
   const t = themes[theme];
 
   const [view, setView] = useState('dashboard');
@@ -592,23 +594,42 @@ function MainDashboard() {
 
   return (
     <div className={`min-h-screen ${t.bg} flex`}>
-      <Sidebar
-        navItems={navItems}
-        currentView={view}
-        onViewChange={setView}
-        isOpen={sidebarOpen}
-        onToggle={() => setSidebarOpen(!sidebarOpen)}
-      />
-
-      <main className="flex-1 overflow-auto">
-        <Header
-          title={navItems.find(n => n.id === view)?.label}
-          sidebarOpen={sidebarOpen}
-          onToggleSidebar={() => setSidebarOpen(!sidebarOpen)}
-          loading={loading}
-          isPending={isPending}
-          onRefresh={loadData}
+      {/* Web: Sidebar classique */}
+      {!platform.isNative && (
+        <Sidebar
+          navItems={navItems}
+          currentView={view}
+          onViewChange={setView}
+          isOpen={sidebarOpen}
+          onToggle={() => setSidebarOpen(!sidebarOpen)}
         />
+      )}
+
+      <main className="flex-1 overflow-auto" style={{ 
+        paddingBottom: platform.isNative ? `calc(64px + ${platform.safeAreaBottom}px)` : 0 
+      }}>
+        {/* Web: Header classique avec menu */}
+        {!platform.isNative && (
+          <Header
+            title={navItems.find(n => n.id === view)?.label}
+            sidebarOpen={sidebarOpen}
+            onToggleSidebar={() => setSidebarOpen(!sidebarOpen)}
+            loading={loading}
+            isPending={isPending}
+            onRefresh={loadData}
+          />
+        )}
+
+        {/* iOS: Header simplifié */}
+        {platform.isNative && (
+          <HeaderIOS
+            title={navItems.find(n => n.id === view)?.label}
+            loading={loading}
+            isPending={isPending}
+            onRefresh={loadData}
+            safeAreaTop={platform.safeAreaTop}
+          />
+        )}
 
         <div className="p-4 sm:p-6 space-y-6">
           {view === 'dashboard' && (
@@ -994,6 +1015,16 @@ function MainDashboard() {
           )}
         </div>
       </main>
+
+      {/* iOS: Bottom Navigation */}
+      {platform.isNative && (
+        <BottomNavigation
+          navItems={navItems}
+          currentView={view}
+          onViewChange={setView}
+          safeAreaBottom={platform.safeAreaBottom}
+        />
+      )}
 
       {showRejetsModal && <AliasModal />}
     </div>
