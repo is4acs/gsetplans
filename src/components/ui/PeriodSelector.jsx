@@ -24,107 +24,109 @@ function PeriodSelector({
     return periods.weeksByYearMonth?.[`${selectedYear}_${selectedMonth}`] || [];
   }, [periods, selectedYear, selectedMonth]);
 
-  const selectClass = `px-3 py-2 rounded-lg text-sm outline-none transition-all ${t.input} border`;
+  const selectClass = `w-full px-3 py-2.5 rounded-lg text-sm outline-none transition-all ${t.input} border`;
 
   return (
-    <div className={`flex flex-wrap items-center gap-3 p-4 rounded-2xl border ${t.card}`}>
-      <div className="flex items-center gap-2">
+    <div className={`p-4 rounded-2xl border ${t.card}`}>
+      <div className="flex items-center gap-2 mb-3">
         <div className={`p-2 rounded-lg ${t.accentLight}`}>
           <Filter className="w-4 h-4" />
         </div>
         <span className={`text-sm font-medium ${t.text}`}>Filtrer</span>
       </div>
 
-      <select
-        value={selectedYear || ''}
-        onChange={(e) => onChange({
-          year: e.target.value ? parseInt(e.target.value) : null,
-          month: null,
-          week: null
-        })}
-        className={selectClass}
-      >
-        <option value="">Toutes années</option>
-        {(periods.years || []).map(y => (
-          <option key={y} value={y}>{y}</option>
-        ))}
-      </select>
-
-      <select
-        value={selectedMonth || ''}
-        onChange={(e) => onChange({
-          year: selectedYear,
-          month: e.target.value ? parseInt(e.target.value) : null,
-          week: null
-        })}
-        disabled={!selectedYear}
-        className={`${selectClass} disabled:opacity-50`}
-      >
-        <option value="">Tous mois</option>
-        {MONTHS.filter(m => availableMonths.includes(m.value)).map(m => (
-          <option key={m.value} value={m.value}>{m.label}</option>
-        ))}
-      </select>
-
-      {viewMode === 'hebdo' && (
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
         <select
-          value={selectedWeek || ''}
+          value={selectedYear || ''}
           onChange={(e) => onChange({
-            year: selectedYear,
-            month: selectedMonth,
-            week: e.target.value ? parseInt(e.target.value) : null
+            year: e.target.value ? parseInt(e.target.value) : null,
+            month: null,
+            week: null
           })}
-          disabled={!selectedMonth}
-          className={`${selectClass} disabled:opacity-50`}
+          className={selectClass}
         >
-          <option value="">Toutes semaines</option>
-          {availableWeeks.map(w => (
-            <option key={w} value={w}>S{w}</option>
+          <option value="">Toutes années</option>
+          {(periods.years || []).map(y => (
+            <option key={y} value={y}>{y}</option>
           ))}
         </select>
-      )}
 
-      <div className={`flex items-center gap-1 p-1 rounded-lg ${t.bgTertiary}`}>
-        <button
-          onClick={() => onChange({
+        <select
+          value={selectedMonth || ''}
+          onChange={(e) => onChange({
             year: selectedYear,
-            month: selectedMonth,
+            month: e.target.value ? parseInt(e.target.value) : null,
             week: null,
-            viewMode: 'mensuel'
           })}
-          className={`px-3 py-1.5 text-sm rounded-md transition-all ${
-            viewMode === 'mensuel'
-              ? `${t.bgSecondary} shadow-sm ${t.text} font-medium`
-              : t.textSecondary
-          }`}
+          disabled={!selectedYear}
+          className={`${selectClass} disabled:opacity-50`}
         >
-          Mois
-        </button>
-        <button
-          onClick={() => onChange({
-            year: selectedYear,
-            month: selectedMonth,
-            week: selectedWeek,
-            viewMode: 'hebdo'
-          })}
-          className={`px-3 py-1.5 text-sm rounded-md transition-all ${
-            viewMode === 'hebdo'
-              ? `${t.bgSecondary} shadow-sm ${t.text} font-medium`
-              : t.textSecondary
-          }`}
-        >
-          Semaine
-        </button>
-      </div>
+          <option value="">Tous mois</option>
+          {MONTHS.filter(m => availableMonths.includes(m.value)).map(m => (
+            <option key={m.value} value={m.value}>{m.label}</option>
+          ))}
+        </select>
 
-      {(selectedYear || selectedMonth) && (
-        <button
-          onClick={() => onChange({ year: null, month: null, week: null })}
-          className={`px-3 py-1.5 text-sm ${t.textMuted}`}
-        >
-          Réinitialiser
-        </button>
-      )}
+        {viewMode === 'hebdo' && (
+          <select
+            value={selectedWeek || ''}
+            onChange={(e) => onChange({
+              year: selectedYear,
+              month: selectedMonth,
+              week: e.target.value ? parseInt(e.target.value) : null
+            })}
+            disabled={!selectedMonth}
+            className={`${selectClass} disabled:opacity-50`}
+          >
+            <option value="">Toutes semaines</option>
+            {availableWeeks.map(w => (
+              <option key={w} value={w}>S{w}</option>
+            ))}
+          </select>
+        )}
+
+        <div className={`flex items-center gap-1 p-1 rounded-lg ${t.bgTertiary}`}>
+          <button
+            onClick={() => onChange({
+              year: selectedYear,
+              month: selectedMonth,
+              week: null,
+              viewMode: 'mensuel'
+            })}
+            className={`px-3 py-1.5 text-sm rounded-md transition-all ${
+              viewMode === 'mensuel'
+                ? `${t.bgSecondary} shadow-sm ${t.text} font-medium`
+                : t.textSecondary
+            }`}
+          >
+            Mois
+          </button>
+          <button
+            onClick={() => onChange({
+              year: selectedYear,
+              month: selectedMonth,
+              week: selectedWeek,
+              viewMode: 'hebdo'
+            })}
+            className={`px-3 py-1.5 text-sm rounded-md transition-all ${
+              viewMode === 'hebdo'
+                ? `${t.bgSecondary} shadow-sm ${t.text} font-medium`
+                : t.textSecondary
+            }`}
+          >
+            Semaine
+          </button>
+        </div>
+
+        {(selectedYear || selectedMonth || selectedWeek) && (
+          <button
+            onClick={() => onChange({ year: null, month: null, week: null })}
+            className={`px-3 py-2.5 text-sm rounded-lg ${t.bgTertiary} ${t.textSecondary} ${t.bgHover}`}
+          >
+            Réinitialiser
+          </button>
+        )}
+      </div>
     </div>
   );
 }

@@ -2,10 +2,10 @@ import { useState, useEffect, useCallback, useRef, useTransition } from 'react';
 import {
   LayoutDashboard, Upload, Users, Settings, CalendarDays,
   Euro, TrendingUp, PieChart, User, BarChart3, AlertTriangle,
-  XCircle, CheckCircle, Clock, FileWarning, Loader2, Trash2, X, Filter, LogOut
+  XCircle, CheckCircle, Clock, FileWarning, Loader2, Trash2, X
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
-import { useTheme, useAuth, useAmountVisibility } from '../contexts';
+import { useTheme, useAuth } from '../contexts';
 import { themes } from '../utils/theme';
 import { MONTHS } from '../utils/constants';
 import {
@@ -27,13 +27,14 @@ import { usePlatform } from '../hooks';
 
 function MainDashboard() {
   const { theme } = useTheme();
-  const { profile, signOut } = useAuth();
-  const { showAmounts } = useAmountVisibility();
+  const { profile } = useAuth();
   const platform = usePlatform();
   const t = themes[theme];
 
   const [view, setView] = useState('dashboard');
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [sidebarOpen, setSidebarOpen] = useState(() => (
+    typeof window !== 'undefined' ? window.matchMedia('(min-width: 1024px)').matches : true
+  ));
   const [loading, setLoading] = useState(true);
   const [isPending, startTransition] = useTransition();
 
@@ -164,6 +165,24 @@ function MainDashboard() {
         .finally(() => setLoading(false));
     }
   }, [selectedYear, selectedMonth, selectedWeek, viewMode, loadInterventions]);
+
+  useEffect(() => {
+    if (platform.isNative) return undefined;
+
+    const mediaQuery = window.matchMedia('(min-width: 1024px)');
+    const handleMediaChange = (event) => {
+      setSidebarOpen(event.matches);
+    };
+
+    setSidebarOpen(mediaQuery.matches);
+    if (mediaQuery.addEventListener) {
+      mediaQuery.addEventListener('change', handleMediaChange);
+      return () => mediaQuery.removeEventListener('change', handleMediaChange);
+    }
+
+    mediaQuery.addListener(handleMediaChange);
+    return () => mediaQuery.removeListener(handleMediaChange);
+  }, [platform.isNative]);
 
   // Sauvegarder les aliases
   useEffect(() => {
@@ -552,7 +571,7 @@ function MainDashboard() {
         <div className={`${t.card} rounded-2xl max-w-lg w-full max-h-[80vh] overflow-hidden`}>
           <div className={`p-4 border-b ${t.border} flex items-center justify-between`}>
             <h3 className={`font-semibold ${t.text}`}>Gestion des alias Rejets</h3>
-            <button onClick={() => setShowRejetsModal(false)} className={`p-2 rounded-lg hover:${t.bgTertiary}`}><X className="w-5 h-5" /></button>
+            <button onClick={() => setShowRejetsModal(false)} className={`p-2 rounded-lg ${t.bgHover}`}><X className="w-5 h-5" /></button>
           </div>
           <div className="p-4 space-y-4 overflow-y-auto max-h-[60vh]">
             <p className={`text-sm ${t.textMuted}`}>Associer les noms des rejets aux techniciens de l'équipe</p>
@@ -605,7 +624,7 @@ function MainDashboard() {
         />
       )}
 
-      <main className="flex-1 overflow-auto" style={{ 
+      <main className="flex-1 overflow-x-hidden overflow-y-auto" style={{ 
         paddingBottom: platform.isNative ? `calc(64px + ${platform.safeAreaBottom}px)` : 0 
       }}>
         {/* Web: Header classique avec menu */}
@@ -631,7 +650,7 @@ function MainDashboard() {
           />
         )}
 
-        <div className="p-4 sm:p-6 space-y-6">
+        <div className={platform.isNative ? 'p-3 space-y-4' : 'p-4 sm:p-6 space-y-6'}>
           {view === 'dashboard' && (
             <>
               <PeriodSelector
@@ -655,7 +674,7 @@ function MainDashboard() {
 
               {isDirection ? (
                 <>
-                  <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-4">
                     <StatCard icon={Euro} label="Total Facturé" value={`${totalST.toLocaleString('fr-FR')}€`} color="emerald" />
                     <StatCard icon={TrendingUp} label="Orange" value={`${orangeTotalGset.toLocaleString('fr-FR')}€`} sub={`${filteredOrange.length} interv.`} color="orange" />
                     <StatCard icon={PieChart} label="Canal+" value={`${canalTotalGset.toLocaleString('fr-FR')}€`} sub={`${filteredCanal.length} interv.`} color="purple" />
@@ -803,7 +822,7 @@ function MainDashboard() {
                     </div>
                   </div>
                   <div className="flex flex-wrap items-center gap-3">
-                    <button onClick={() => setShowRejetsModal(true)} className={`px-4 py-2.5 rounded-xl font-medium ${t.bgTertiary} ${t.text} hover:${t.bgSecondary} transition-colors`}>
+                    <button onClick={() => setShowRejetsModal(true)} className={`px-4 py-2.5 rounded-xl font-medium ${t.bgTertiary} ${t.text} ${t.bgHover} transition-colors`}>
                       ⚙️ Alias
                     </button>
                     <label className={`px-4 py-2.5 rounded-xl font-medium cursor-pointer transition-all ${importingRejets ? 'bg-gray-400' : 'bg-emerald-500 hover:bg-emerald-600'} text-white flex items-center gap-2`}>

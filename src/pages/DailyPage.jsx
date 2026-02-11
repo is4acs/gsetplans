@@ -591,12 +591,12 @@ function DailyPage({ orangePrices, canalPrices, profile }) {
           <div className="flex flex-wrap items-center gap-3">
             {/* Vues rapides */}
             {!compareMode && (
-              <div className={`flex gap-1 p-1 rounded-xl ${t.bgTertiary}`}>
+              <div className={`flex gap-1 p-1 rounded-xl ${t.bgTertiary} overflow-x-auto`}>
                 {QUICK_VIEWS.map(v => (
                   <button 
                     key={v.value} 
                     onClick={() => { setQuickView(v.value); setSelectedWeek(null); }}
-                    className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${quickView === v.value && !compareMode ? 'bg-emerald-500 text-white shadow' : `${t.textSecondary} hover:${t.bgSecondary}`}`}
+                    className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all whitespace-nowrap ${quickView === v.value && !compareMode ? 'bg-emerald-500 text-white shadow' : `${t.textSecondary} ${t.bgHover}`}`}
                   >
                     {v.label}
                   </button>
@@ -607,9 +607,9 @@ function DailyPage({ orangePrices, canalPrices, profile }) {
             {/* Mode comparaison : Sélecteur de mois */}
             {compareMode && (
               <div className={`flex items-center gap-1 p-1 rounded-xl ${t.bgTertiary}`}>
-                <button onClick={goToPrevMonth} className={`p-2 rounded-lg hover:${t.bgSecondary} transition-colors`}><ChevronLeft className="w-5 h-5" /></button>
+                <button onClick={goToPrevMonth} className={`p-2 rounded-lg ${t.bgHover} transition-colors`}><ChevronLeft className="w-5 h-5" /></button>
                 <span className={`px-2 py-1.5 font-semibold ${t.text} min-w-[120px] text-center text-sm`}>{MONTHS_FR[selectedMonth]} {selectedYear}</span>
-                <button onClick={goToNextMonth} className={`p-2 rounded-lg hover:${t.bgSecondary} transition-colors`}><ChevronRight className="w-5 h-5" /></button>
+                <button onClick={goToNextMonth} className={`p-2 rounded-lg ${t.bgHover} transition-colors`}><ChevronRight className="w-5 h-5" /></button>
               </div>
             )}
             
@@ -618,7 +618,7 @@ function DailyPage({ orangePrices, canalPrices, profile }) {
               <div className={`flex gap-1 p-1 rounded-xl ${t.bgTertiary}`}>
                 <button 
                   onClick={() => setSelectedWeek(null)} 
-                  className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${selectedWeek === null ? 'bg-blue-500 text-white shadow' : `${t.textSecondary} hover:${t.bgSecondary}`}`}
+                  className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${selectedWeek === null ? 'bg-blue-500 text-white shadow' : `${t.textSecondary} ${t.bgHover}`}`}
                 >
                   Mois
                 </button>
@@ -626,7 +626,7 @@ function DailyPage({ orangePrices, canalPrices, profile }) {
                   <button 
                     key={w.value} 
                     onClick={() => setSelectedWeek(w.value)} 
-                    className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${selectedWeek === w.value ? 'bg-blue-500 text-white shadow' : `${t.textSecondary} hover:${t.bgSecondary}`}`}
+                    className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${selectedWeek === w.value ? 'bg-blue-500 text-white shadow' : `${t.textSecondary} ${t.bgHover}`}`}
                   >
                     {w.label}
                   </button>
@@ -662,7 +662,18 @@ function DailyPage({ orangePrices, canalPrices, profile }) {
         </div>
       </div>
 
-      {isDirection && <div className="flex gap-3"><select value={selectedTech} onChange={(e) => setSelectedTech(e.target.value)} className={`px-4 py-2.5 rounded-xl border ${t.input} ${t.text} font-medium`}><option value="all">👥 Tous les techniciens</option>{techsList.map(tech => <option key={tech} value={tech}>{tech}</option>)}</select></div>}
+      {isDirection && (
+        <div className="flex gap-3">
+          <select
+            value={selectedTech}
+            onChange={(e) => setSelectedTech(e.target.value)}
+            className={`w-full sm:w-auto px-4 py-2.5 rounded-xl border ${t.input} ${t.text} font-medium`}
+          >
+            <option value="all">👥 Tous les techniciens</option>
+            {techsList.map(tech => <option key={tech} value={tech}>{tech}</option>)}
+          </select>
+        </div>
+      )}
 
       {/* Bandeau comparaison */}
       {compareMode && (

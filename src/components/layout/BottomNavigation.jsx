@@ -1,5 +1,5 @@
-// BottomNavigation - Navigation iOS native style
-import { LogOut } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import { LogOut, MoreHorizontal, ChevronUp } from 'lucide-react';
 import { useTheme, useAuth } from '../../contexts';
 import { themes } from '../../utils/theme';
 
@@ -7,63 +7,133 @@ function BottomNavigation({ navItems, currentView, onViewChange, safeAreaBottom 
   const { theme } = useTheme();
   const { signOut } = useAuth();
   const t = themes[theme];
+  const [showOverflowMenu, setShowOverflowMenu] = useState(false);
 
-  // Limiter à 4 items max pour laisser place au logout
-  const displayItems = navItems.slice(0, 4);
+  const MAX_PRIMARY_ITEMS = 4;
+  const hasOverflow = navItems.length > MAX_PRIMARY_ITEMS;
+
+  const primaryItems = useMemo(
+    () => (hasOverflow ? navItems.slice(0, MAX_PRIMARY_ITEMS - 1) : navItems),
+    [hasOverflow, navItems]
+  );
+
+  const overflowItems = useMemo(
+    () => (hasOverflow ? navItems.slice(MAX_PRIMARY_ITEMS - 1) : []),
+    [hasOverflow, navItems]
+  );
+
+  const overflowActive = overflowItems.some(item => item.id === currentView);
+
+  useEffect(() => {
+    setShowOverflowMenu(false);
+  }, [currentView]);
 
   return (
-    <nav 
-      className={`fixed bottom-0 left-0 right-0 ${t.sidebar} border-t ${t.border} z-50`}
-      style={{ 
-        paddingBottom: `${safeAreaBottom}px`,
-        WebkitBackdropFilter: 'blur(20px)',
-        backdropFilter: 'blur(20px)'
-      }}
-    >
-      <div className="flex justify-around items-center h-16">
-        {displayItems.map(item => {
-          const isActive = currentView === item.id;
-          return (
+    <>
+      {hasOverflow && showOverflowMenu && (
+        <>
+          <button
+            type="button"
+            aria-label="Fermer le menu"
+            onClick={() => setShowOverflowMenu(false)}
+            className="fixed inset-0 z-[60] bg-black/30"
+          />
+          <div
+            className={`fixed left-4 right-4 z-[70] rounded-2xl border ${t.border} ${t.bgSecondary} shadow-2xl p-2`}
+            style={{ bottom: `calc(80px + ${safeAreaBottom}px)` }}
+          >
+            <p className={`px-3 py-2 text-xs font-semibold uppercase tracking-wide ${t.textMuted}`}>
+              Plus
+            </p>
+            <div className="space-y-1">
+              {overflowItems.map(item => {
+                const isActive = currentView === item.id;
+                return (
+                  <button
+                    key={item.id}
+                    onClick={() => onViewChange(item.id)}
+                    className={`w-full flex items-center gap-3 px-3 py-3 rounded-xl text-left transition-colors ${
+                      isActive ? 'bg-teal-500/15 text-teal-500' : `${t.text} ${t.bgHover}`
+                    }`}
+                  >
+                    <item.icon className="w-5 h-5 flex-shrink-0" />
+                    <span className="text-sm font-medium">{item.label}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </>
+      )}
+
+      <nav
+        className={`fixed bottom-0 left-0 right-0 ${t.sidebar} border-t ${t.border} z-50`}
+        style={{
+          paddingBottom: `${safeAreaBottom}px`,
+          WebkitBackdropFilter: 'blur(20px)',
+          backdropFilter: 'blur(20px)'
+        }}
+      >
+        <div className="flex justify-around items-center h-16">
+          {primaryItems.map(item => {
+            const isActive = currentView === item.id;
+            return (
+              <button
+                key={item.id}
+                onClick={() => onViewChange(item.id)}
+                className={`flex flex-col items-center justify-center flex-1 h-full py-2 px-1 transition-all active:scale-95 ${
+                  isActive ? 'text-teal-500' : t.textSecondary
+                }`}
+                style={{
+                  WebkitTapHighlightColor: 'transparent',
+                  touchAction: 'manipulation'
+                }}
+              >
+                <item.icon
+                  className={`w-6 h-6 mb-1 ${isActive ? 'text-teal-500' : ''}`}
+                  strokeWidth={isActive ? 2.5 : 2}
+                />
+                <span
+                  className={`text-[10px] font-medium truncate max-w-full ${
+                    isActive ? 'text-teal-500' : ''
+                  }`}
+                >
+                  {item.label}
+                </span>
+              </button>
+            );
+          })}
+
+          {hasOverflow && (
             <button
-              key={item.id}
-              onClick={() => onViewChange(item.id)}
+              onClick={() => setShowOverflowMenu(prev => !prev)}
               className={`flex flex-col items-center justify-center flex-1 h-full py-2 px-1 transition-all active:scale-95 ${
-                isActive ? 'text-teal-500' : t.textSecondary
+                overflowActive || showOverflowMenu ? 'text-teal-500' : t.textSecondary
               }`}
               style={{
                 WebkitTapHighlightColor: 'transparent',
                 touchAction: 'manipulation'
               }}
             >
-              <item.icon 
-                className={`w-6 h-6 mb-1 ${isActive ? 'text-teal-500' : ''}`} 
-                strokeWidth={isActive ? 2.5 : 2}
-              />
-              <span 
-                className={`text-[10px] font-medium truncate max-w-full ${
-                  isActive ? 'text-teal-500' : ''
-                }`}
-              >
-                {item.label}
-              </span>
+              {showOverflowMenu ? <ChevronUp className="w-6 h-6 mb-1" /> : <MoreHorizontal className="w-6 h-6 mb-1" />}
+              <span className="text-[10px] font-medium">Plus</span>
             </button>
-          );
-        })}
-        
-        {/* Bouton Déconnexion */}
-        <button
-          onClick={signOut}
-          className="flex flex-col items-center justify-center flex-1 h-full py-2 px-1 transition-all active:scale-95 text-red-500"
-          style={{
-            WebkitTapHighlightColor: 'transparent',
-            touchAction: 'manipulation'
-          }}
-        >
-          <LogOut className="w-6 h-6 mb-1" strokeWidth={2} />
-          <span className="text-[10px] font-medium">Sortir</span>
-        </button>
-      </div>
-    </nav>
+          )}
+
+          <button
+            onClick={signOut}
+            className="flex flex-col items-center justify-center flex-1 h-full py-2 px-1 transition-all active:scale-95 text-red-500"
+            style={{
+              WebkitTapHighlightColor: 'transparent',
+              touchAction: 'manipulation'
+            }}
+          >
+            <LogOut className="w-6 h-6 mb-1" strokeWidth={2} />
+            <span className="text-[10px] font-medium">Sortir</span>
+          </button>
+        </div>
+      </nav>
+    </>
   );
 }
 

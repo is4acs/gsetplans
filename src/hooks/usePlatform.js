@@ -1,5 +1,42 @@
-// Hook pour détecter la plateforme (iOS native vs Web)
-import { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
+
+const IOS_SAFE_TOP_FALLBACK = 47;
+const IOS_SAFE_BOTTOM_FALLBACK = 34;
+
+function parseSafeAreaValue(cssVarName, fallbackValue = 0) {
+  const computedStyle = getComputedStyle(document.documentElement);
+  const rawValue = computedStyle.getPropertyValue(cssVarName).trim();
+  const parsed = Number.parseFloat(rawValue.replace('px', ''));
+  return Number.isFinite(parsed) ? parsed : fallbackValue;
+}
+
+function detectPlatform() {
+  const capacitorObject = window.Capacitor;
+  const nativeFromCapacitorApi = capacitorObject?.isNativePlatform?.() === true;
+  const nativeFromProtocol = document.URL.startsWith('capacitor://') || document.URL.startsWith('ionic://');
+  const nativeFromGlobal = !!(capacitorObject && capacitorObject.platform && capacitorObject.platform !== 'web');
+  const isCapacitor = nativeFromCapacitorApi || nativeFromProtocol || nativeFromGlobal;
+
+  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent)
+    || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+
+  const isStandalone = window.matchMedia('(display-mode: standalone)').matches
+    || window.navigator.standalone === true;
+
+  const isNative = isCapacitor || (isIOS && isStandalone);
+
+  const safeTopFallback = isIOS && isNative ? IOS_SAFE_TOP_FALLBACK : 0;
+  const safeBottomFallback = isIOS && isNative ? IOS_SAFE_BOTTOM_FALLBACK : 0;
+
+  return {
+    isIOS,
+    isCapacitor,
+    isNative,
+    isWeb: !isNative,
+    safeAreaTop: parseSafeAreaValue('--sat', safeTopFallback),
+    safeAreaBottom: parseSafeAreaValue('--sab', safeBottomFallback)
+  };
+}
 
 export function usePlatform() {
   const [platform, setPlatform] = useState({
@@ -12,47 +49,26 @@ export function usePlatform() {
   });
 
   useEffect(() => {
-    // Détecter Capacitor
-    const isCapacitor = typeof window !== 'undefined' && 
-      (window.Capacitor !== undefined || 
-       document.URL.startsWith('capacitor://') ||
-       document.URL.startsWith('ionic://'));
-    
-    // Détecter iOS
-    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || 
-      (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-    
-    // Détecter standalone mode (PWA installée)
-    const isStandalone = window.matchMedia('(display-mode: standalone)').matches ||
-      window.navigator.standalone === true;
-    
-    // Native = Capacitor ou PWA standalone sur iOS
-    const isNative = isCapacitor || (isIOS && isStandalone);
-    
-    // Safe areas pour le notch
-    const computedStyle = getComputedStyle(document.documentElement);
-    const safeAreaTop = parseInt(computedStyle.getPropertyValue('--sat') || '0', 10) || 
-      (isIOS && isNative ? 47 : 0); // Fallback pour notch iPhone
-    const safeAreaBottom = parseInt(computedStyle.getPropertyValue('--sab') || '0', 10) ||
-      (isIOS && isNative ? 34 : 0); // Fallback pour home indicator
+    const updatePlatform = () => {
+      const detected = detectPlatform();
+      setPlatform(detected);
 
-    setPlatform({
-      isIOS,
-      isCapacitor,
-      isNative,
-      isWeb: !isNative,
-      safeAreaTop,
-      safeAreaBottom
-    });
+      document.body.classList.toggle('native-app', detected.isNative);
+      document.body.classList.toggle('ios-app', detected.isNative && detected.isIOS);
+    };
 
-    // Ajouter des classes au body pour CSS conditionnel
-    if (isNative) {
-      document.body.classList.add('native-app');
-      if (isIOS) document.body.classList.add('ios-app');
-    }
+    updatePlatform();
 
-    // Log pour debug
-    console.log('Platform detected:', { isIOS, isCapacitor, isNative, isStandalone });
+    window.addEventListener('resize', updatePlatform, { passive: true });
+    window.addEventListener('orientationchange', updatePlatform, { passive: true });
+    window.visualViewport?.addEventListener('resize', updatePlatform);
+
+    return () => {
+      window.removeEventListener('resize', updatePlatform);
+      window.removeEventListener('orientationchange', updatePlatform);
+      window.visualViewport?.removeEventListener('resize', updatePlatform);
+      document.body.classList.remove('native-app', 'ios-app');
+    };
   }, []);
 
   return platform;

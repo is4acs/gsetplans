@@ -44,7 +44,57 @@ const InterventionsTable = memo(function InterventionsTable({
           <p className={`text-sm ${t.textMuted}`}>{interventions.length} interventions</p>
         </div>
       </div>
-      <div className="overflow-x-auto">
+      <div className="md:hidden divide-y divide-gray-200 dark:divide-gray-800">
+        {displayed.map((inter, i) => (
+          <div key={i} className="p-4 space-y-3">
+            <div className="flex items-center justify-between gap-3">
+              <p className={`text-xs font-mono ${t.textSecondary}`}>
+                {formatDate(inter.intervention_date)}
+              </p>
+              <span className={`px-2.5 py-1 text-xs rounded-full font-medium ${
+                inter.source === 'orange'
+                  ? 'bg-orange-100 text-orange-700 dark:bg-orange-500/20 dark:text-orange-400'
+                  : 'bg-purple-100 text-purple-700 dark:bg-purple-500/20 dark:text-purple-400'
+              }`}>
+                {inter.source === 'orange' ? 'Orange' : 'Canal+'}
+              </span>
+            </div>
+            <div className="space-y-1.5">
+              {showTech && (
+                <p className={`text-sm ${t.text}`}>
+                  <span className={t.textMuted}>Tech:</span> {inter.tech || inter.tech_name || '-'}
+                </p>
+              )}
+              <p className={`text-sm ${t.text}`}>
+                <span className={t.textMuted}>Ref:</span> {inter.nd || inter.ref_pxo || '-'}
+              </p>
+              <p className={`text-sm ${t.text}`}>
+                <span className={t.textMuted}>Type:</span> {inter.articles || inter.facturation || '-'}
+              </p>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              {isDirection && (
+                <div className={`rounded-lg p-2 ${t.bgTertiary}`}>
+                  <p className={`text-[11px] uppercase ${t.textMuted}`}>ST</p>
+                  <p className={`font-semibold ${
+                    inter.source === 'orange' ? 'text-orange-500' : 'text-purple-500'
+                  }`}>
+                    {formatAmount(inter.source === 'orange' ? inter.montant_st : inter.montant_gset)}
+                  </p>
+                </div>
+              )}
+              <div className={`rounded-lg p-2 ${t.bgTertiary} ${isDirection ? '' : 'col-span-2'}`}>
+                <p className={`text-[11px] uppercase ${t.textMuted}`}>{isDirection ? 'Tech' : 'Prix'}</p>
+                <p className={`font-semibold ${isDirection ? 'text-blue-500' : 'text-emerald-500'}`}>
+                  {formatAmount(getTechPrice(inter))}
+                </p>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div className="hidden md:block overflow-x-auto">
         <table className="w-full text-sm">
           <thead className={t.bgTertiary}>
             <tr>
