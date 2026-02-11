@@ -9,7 +9,9 @@ function HeaderIOS({
   loading,
   isPending,
   onRefresh,
-  safeAreaTop = 47
+  safeAreaTop = 47,
+  safeAreaLeft = 0,
+  safeAreaRight = 0
 }) {
   const { theme, setTheme } = useTheme();
   const { profile } = useAuth();
@@ -20,15 +22,18 @@ function HeaderIOS({
 
   return (
     <header 
-      className={`${t.bgSecondary} border-b ${t.border} px-4 py-3 sticky top-0 z-10`}
+      className={`${t.bgSecondary} border-b ${t.border} sticky top-0 z-10`}
       style={{ 
         paddingTop: `calc(${safeAreaTop}px + 12px)`,
+        paddingBottom: '12px',
+        paddingLeft: `calc(${safeAreaLeft}px + 16px)`,
+        paddingRight: `calc(${safeAreaRight}px + 16px)`,
         WebkitBackdropFilter: 'blur(20px)',
         backdropFilter: 'blur(20px)'
       }}
     >
       {/* Titre et badge utilisateur */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-start justify-between gap-3">
         <div className="flex items-center gap-3 flex-1 min-w-0">
           <h2 className={`text-lg font-bold ${t.text} truncate`}>
             {title}
@@ -36,13 +41,13 @@ function HeaderIOS({
           {isPending && <LoadingSpinner size="sm" />}
         </div>
         
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 shrink-0 ml-2">
           <VisibilityToggle />
           
           <button
             onClick={onRefresh}
             disabled={loading || isPending}
-            className={`p-2.5 rounded-xl ${t.bgTertiary} active:scale-95 transition-transform ${
+            className={`w-11 h-11 inline-flex items-center justify-center rounded-xl ${t.bgTertiary} active:scale-95 transition-transform ${
               (loading || isPending) ? 'opacity-50' : ''
             }`}
             style={{ 
@@ -57,7 +62,7 @@ function HeaderIOS({
           
           <button
             onClick={() => setTheme(theme === 'light' ? 'dark' : 'light')}
-            className={`p-2.5 rounded-xl ${t.bgTertiary} active:scale-95 transition-transform`}
+            className={`w-11 h-11 inline-flex items-center justify-center rounded-xl ${t.bgTertiary} active:scale-95 transition-transform`}
             style={{ 
               WebkitTapHighlightColor: 'transparent',
               touchAction: 'manipulation'

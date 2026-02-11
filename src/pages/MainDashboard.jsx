@@ -625,7 +625,9 @@ function MainDashboard() {
       )}
 
       <main className="flex-1 overflow-x-hidden overflow-y-auto" style={{ 
-        paddingBottom: platform.isNative ? `calc(64px + ${platform.safeAreaBottom}px)` : 0 
+        paddingBottom: platform.isNative ? `calc(64px + ${platform.safeAreaBottom}px)` : 0,
+        paddingLeft: platform.isNative ? `${platform.safeAreaLeft}px` : 0,
+        paddingRight: platform.isNative ? `${platform.safeAreaRight}px` : 0
       }}>
         {/* Web: Header classique avec menu */}
         {!platform.isNative && (
@@ -647,6 +649,8 @@ function MainDashboard() {
             isPending={isPending}
             onRefresh={loadData}
             safeAreaTop={platform.safeAreaTop}
+            safeAreaLeft={platform.safeAreaLeft}
+            safeAreaRight={platform.safeAreaRight}
           />
         )}
 
@@ -1042,6 +1046,8 @@ function MainDashboard() {
           currentView={view}
           onViewChange={setView}
           safeAreaBottom={platform.safeAreaBottom}
+          safeAreaLeft={platform.safeAreaLeft}
+          safeAreaRight={platform.safeAreaRight}
         />
       )}
 

@@ -2,7 +2,7 @@ import { Eye, EyeOff } from 'lucide-react';
 import { useTheme, useAmountVisibility } from '../../contexts';
 import { themes } from '../../utils/theme';
 
-function VisibilityToggle() {
+function VisibilityToggle({ className = '' }) {
   const { showAmounts, toggleAmounts } = useAmountVisibility();
   const { theme } = useTheme();
   const t = themes[theme];
@@ -10,7 +10,7 @@ function VisibilityToggle() {
   return (
     <button
       onClick={toggleAmounts}
-      className={`p-2 rounded-xl ${t.bgTertiary} ${t.bgHover} transition-all`}
+      className={`w-11 h-11 inline-flex items-center justify-center rounded-xl ${t.bgTertiary} ${t.bgHover} transition-all ${className}`}
       title={showAmounts ? 'Masquer les montants' : 'Afficher les montants'}
     >
       {showAmounts

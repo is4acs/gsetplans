@@ -2,12 +2,19 @@ import { useEffect, useState } from 'react';
 
 const IOS_SAFE_TOP_FALLBACK = 47;
 const IOS_SAFE_BOTTOM_FALLBACK = 34;
+const SAFE_AREA_TOP_MAX = 80;
+const SAFE_AREA_BOTTOM_MAX = 60;
+const SAFE_AREA_HORIZONTAL_MAX = 40;
 
 function parseSafeAreaValue(cssVarName, fallbackValue = 0) {
   const computedStyle = getComputedStyle(document.documentElement);
   const rawValue = computedStyle.getPropertyValue(cssVarName).trim();
   const parsed = Number.parseFloat(rawValue.replace('px', ''));
   return Number.isFinite(parsed) ? parsed : fallbackValue;
+}
+
+function clamp(value, min, max) {
+  return Math.min(max, Math.max(min, value));
 }
 
 function detectPlatform() {
@@ -27,14 +34,22 @@ function detectPlatform() {
 
   const safeTopFallback = isIOS && isNative ? IOS_SAFE_TOP_FALLBACK : 0;
   const safeBottomFallback = isIOS && isNative ? IOS_SAFE_BOTTOM_FALLBACK : 0;
+  const safeSideFallback = 0;
+
+  const safeAreaTop = clamp(parseSafeAreaValue('--sat', safeTopFallback), 0, SAFE_AREA_TOP_MAX);
+  const safeAreaBottom = clamp(parseSafeAreaValue('--sab', safeBottomFallback), 0, SAFE_AREA_BOTTOM_MAX);
+  const safeAreaLeft = clamp(parseSafeAreaValue('--sal', safeSideFallback), 0, SAFE_AREA_HORIZONTAL_MAX);
+  const safeAreaRight = clamp(parseSafeAreaValue('--sar', safeSideFallback), 0, SAFE_AREA_HORIZONTAL_MAX);
 
   return {
     isIOS,
     isCapacitor,
     isNative,
     isWeb: !isNative,
-    safeAreaTop: parseSafeAreaValue('--sat', safeTopFallback),
-    safeAreaBottom: parseSafeAreaValue('--sab', safeBottomFallback)
+    safeAreaTop,
+    safeAreaBottom,
+    safeAreaLeft,
+    safeAreaRight
   };
 }
 
@@ -45,7 +60,9 @@ export function usePlatform() {
     isNative: false,
     isWeb: true,
     safeAreaTop: 0,
-    safeAreaBottom: 0
+    safeAreaBottom: 0,
+    safeAreaLeft: 0,
+    safeAreaRight: 0
   });
 
   useEffect(() => {

@@ -3,7 +3,14 @@ import { LogOut, MoreHorizontal, ChevronUp } from 'lucide-react';
 import { useTheme, useAuth } from '../../contexts';
 import { themes } from '../../utils/theme';
 
-function BottomNavigation({ navItems, currentView, onViewChange, safeAreaBottom = 34 }) {
+function BottomNavigation({
+  navItems,
+  currentView,
+  onViewChange,
+  safeAreaBottom = 34,
+  safeAreaLeft = 0,
+  safeAreaRight = 0
+}) {
   const { theme } = useTheme();
   const { signOut } = useAuth();
   const t = themes[theme];
@@ -40,7 +47,11 @@ function BottomNavigation({ navItems, currentView, onViewChange, safeAreaBottom 
           />
           <div
             className={`fixed left-4 right-4 z-[70] rounded-2xl border ${t.border} ${t.bgSecondary} shadow-2xl p-2`}
-            style={{ bottom: `calc(80px + ${safeAreaBottom}px)` }}
+            style={{
+              left: `calc(${safeAreaLeft}px + 16px)`,
+              right: `calc(${safeAreaRight}px + 16px)`,
+              bottom: `calc(80px + ${safeAreaBottom}px)`
+            }}
           >
             <p className={`px-3 py-2 text-xs font-semibold uppercase tracking-wide ${t.textMuted}`}>
               Plus
@@ -70,6 +81,8 @@ function BottomNavigation({ navItems, currentView, onViewChange, safeAreaBottom 
         className={`fixed bottom-0 left-0 right-0 ${t.sidebar} border-t ${t.border} z-50`}
         style={{
           paddingBottom: `${safeAreaBottom}px`,
+          paddingLeft: `${safeAreaLeft}px`,
+          paddingRight: `${safeAreaRight}px`,
           WebkitBackdropFilter: 'blur(20px)',
           backdropFilter: 'blur(20px)'
         }}

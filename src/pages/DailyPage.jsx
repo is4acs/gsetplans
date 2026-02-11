@@ -591,12 +591,12 @@ function DailyPage({ orangePrices, canalPrices, profile }) {
           <div className="flex flex-wrap items-center gap-3">
             {/* Vues rapides */}
             {!compareMode && (
-              <div className={`flex gap-1 p-1 rounded-xl ${t.bgTertiary} overflow-x-auto`}>
+              <div className={`grid w-full sm:w-auto grid-cols-4 gap-1 p-1 rounded-xl ${t.bgTertiary}`}>
                 {QUICK_VIEWS.map(v => (
                   <button 
                     key={v.value} 
                     onClick={() => { setQuickView(v.value); setSelectedWeek(null); }}
-                    className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all whitespace-nowrap ${quickView === v.value && !compareMode ? 'bg-emerald-500 text-white shadow' : `${t.textSecondary} ${t.bgHover}`}`}
+                    className={`px-2 py-2 rounded-lg text-xs sm:text-sm font-medium transition-all text-center ${quickView === v.value && !compareMode ? 'bg-emerald-500 text-white shadow' : `${t.textSecondary} ${t.bgHover}`}`}
                   >
                     {v.label}
                   </button>
