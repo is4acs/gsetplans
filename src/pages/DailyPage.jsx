@@ -12,8 +12,10 @@ import {
 import { useTheme, useAmountVisibility } from '../contexts';
 import { themes } from '../utils/theme';
 import {
-  getDailyTracking, insertDailyTracking, getDailyImports, createDailyImport, deleteDailyImport
+  getDailyTracking, insertDailyTracking, getDailyImports, createDailyImport, deleteDailyImport,
+  getDailyDetails, getDailyDetailsSummary, saveDailyVentilation
 } from '../lib/supabase';
+import DailyDetailModal from '../components/features/DailyDetailModal';
 
 const MONTHS_FR = ['', 'Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin', 'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre'];
 
@@ -105,6 +107,9 @@ function DailyPage({ orangePrices, canalPrices, profile }) {
   const [showAllDetails, setShowAllDetails] = useState(false);
   const [compareMode, setCompareMode] = useState(false);
   const [quickView, setQuickView] = useState('month'); // Vue rapide: yesterday, today, week, month
+  const [detailsSummary, setDetailsSummary] = useState([]);
+  const [detailModalEntry, setDetailModalEntry] = useState(null);
+  const [existingDetails, setExistingDetails] = useState([]);
 
   // Sélection du mois et semaine
   const today = new Date();
@@ -118,7 +123,7 @@ function DailyPage({ orangePrices, canalPrices, profile }) {
   const loadDailyData = useCallback(async () => {
     setLoading(true);
     try {
-      const [tracking, imports] = await Promise.all([getDailyTracking(), getDailyImports()]);
+      const [tracking, imports, detailsRaw] = await Promise.all([getDailyTracking(), getDailyImports(), getDailyDetailsSummary()]);
       
       const orange = tracking.filter(d => d.type === 'ORANGE').map(d => ({
         tech: d.technicien, date: d.date, etat: d.etat, otPlanifies: d.planifies,
@@ -131,6 +136,7 @@ function DailyPage({ orangePrices, canalPrices, profile }) {
       
       setDailyData({ orange, canal, lastUpdate: imports[0]?.created_at || null });
       setDailyImports(imports);
+      setDetailsSummary(detailsRaw);
     } catch (err) {
       console.error('Erreur chargement daily:', err);
     } finally {
@@ -153,6 +159,24 @@ function DailyPage({ orangePrices, canalPrices, profile }) {
     }
     return { orange: orangeTechAvg, canal: canalTechAvg };
   }, [orangePrices, canalPrices, isDirection]);
+
+  // Grouper les détails par tech|date|type pour le calcul hybride
+  const groupedDetails = useMemo(() => {
+    const map = {};
+    detailsSummary.forEach(d => {
+      const key = `${d.technicien}|${d.date}|${d.type}`;
+      if (!map[key]) map[key] = { totalGset: 0, totalTech: 0 };
+      map[key].totalGset += d.total_gset || 0;
+      map[key].totalTech += d.total_tech || 0;
+    });
+    return map;
+  }, [detailsSummary]);
+
+  // Vérifier si une entrée a été détaillée
+  const isDetailed = useCallback((tech, date, type) => {
+    const key = `${tech}|${date}|${type}`;
+    return !!groupedDetails[key];
+  }, [groupedDetails]);
 
   const techsList = useMemo(() => {
     const techs = new Set();
@@ -285,12 +309,44 @@ function DailyPage({ orangePrices, canalPrices, profile }) {
     const canalNOK = data.canal.reduce((s, d) => s + (d.otNOK || 0), 0);
     const canalReport = data.canal.reduce((s, d) => s + (d.otReportes || 0), 0);
     const canalPlanifies = data.canal.reduce((s, d) => s + (d.otPlanifies || 0), 0);
-    const orangeRevenu = orangeOK * avgPrices.orange;
-    const canalRevenu = canalOK * avgPrices.canal;
-    const orangeStRevenu = isDirection && avgPrices.orangeSt ? orangeOK * avgPrices.orangeSt : 0;
-    const canalStRevenu = isDirection && avgPrices.canalSt ? canalOK * avgPrices.canalSt : 0;
-    const orangeTechCost = isDirection && avgPrices.orangeTech ? orangeOK * avgPrices.orangeTech : 0;
-    const canalTechCost = isDirection && avgPrices.canalTech ? canalOK * avgPrices.canalTech : 0;
+
+    // Calcul hybride du revenu : réel si détaillé, estimé sinon
+    const orangeRevenu = data.orange.reduce((sum, d) => {
+      const detail = groupedDetails[`${d.tech}|${d.date}|ORANGE`];
+      if (detail) {
+        return sum + (isDirection ? detail.totalGset : detail.totalTech);
+      }
+      return sum + (d.otOK || 0) * avgPrices.orange;
+    }, 0);
+    const canalRevenu = data.canal.reduce((sum, d) => {
+      const detail = groupedDetails[`${d.tech}|${d.date}|CANAL`];
+      if (detail) {
+        return sum + (isDirection ? detail.totalGset : detail.totalTech);
+      }
+      return sum + (d.otOK || 0) * avgPrices.canal;
+    }, 0);
+
+    // ST revenu et tech cost (direction) - aussi hybride
+    const orangeStRevenu = !isDirection ? 0 : data.orange.reduce((sum, d) => {
+      const detail = groupedDetails[`${d.tech}|${d.date}|ORANGE`];
+      if (detail) return sum + detail.totalGset;
+      return sum + (d.otOK || 0) * (avgPrices.orangeSt || 0);
+    }, 0);
+    const canalStRevenu = !isDirection ? 0 : data.canal.reduce((sum, d) => {
+      const detail = groupedDetails[`${d.tech}|${d.date}|CANAL`];
+      if (detail) return sum + detail.totalGset;
+      return sum + (d.otOK || 0) * (avgPrices.canalSt || 0);
+    }, 0);
+    const orangeTechCost = !isDirection ? 0 : data.orange.reduce((sum, d) => {
+      const detail = groupedDetails[`${d.tech}|${d.date}|ORANGE`];
+      if (detail) return sum + detail.totalTech;
+      return sum + (d.otOK || 0) * (avgPrices.orangeTech || 0);
+    }, 0);
+    const canalTechCost = !isDirection ? 0 : data.canal.reduce((sum, d) => {
+      const detail = groupedDetails[`${d.tech}|${d.date}|CANAL`];
+      if (detail) return sum + detail.totalTech;
+      return sum + (d.otOK || 0) * (avgPrices.canalTech || 0);
+    }, 0);
     
     const totalOK = orangeOK + canalOK;
     const totalNOK = orangeNOK + canalNOK;
@@ -312,8 +368,8 @@ function DailyPage({ orangePrices, canalPrices, profile }) {
     };
   };
 
-  const statsCurrent = useMemo(() => calculateStats(filteredCurrentPeriod), [filteredCurrentPeriod, avgPrices]);
-  const statsPrev = useMemo(() => calculateStats(filteredPrevPeriod), [filteredPrevPeriod, avgPrices]);
+  const statsCurrent = useMemo(() => calculateStats(filteredCurrentPeriod), [filteredCurrentPeriod, avgPrices, groupedDetails]);
+  const statsPrev = useMemo(() => calculateStats(filteredPrevPeriod), [filteredPrevPeriod, avgPrices, groupedDetails]);
 
   // Calcul de l'évolution
   const evolution = useMemo(() => {
@@ -343,17 +399,19 @@ function DailyPage({ orangePrices, canalPrices, profile }) {
       byTech[d.tech].orangeOK += d.otOK || 0;
       byTech[d.tech].total += d.otOK || 0;
       byTech[d.tech].nok += d.otNOK || 0;
-      byTech[d.tech].revenu += (d.otOK || 0) * avgPrices.orange;
+      const detail = groupedDetails[`${d.tech}|${d.date}|ORANGE`];
+      byTech[d.tech].revenu += detail ? detail.totalGset : (d.otOK || 0) * avgPrices.orange;
     });
     filteredCurrentPeriod.canal.forEach(d => {
       if (!byTech[d.tech]) byTech[d.tech] = { tech: d.tech, orangeOK: 0, canalOK: 0, total: 0, revenu: 0, nok: 0 };
       byTech[d.tech].canalOK += d.otOK || 0;
       byTech[d.tech].total += d.otOK || 0;
       byTech[d.tech].nok += d.otNOK || 0;
-      byTech[d.tech].revenu += (d.otOK || 0) * avgPrices.canal;
+      const detail = groupedDetails[`${d.tech}|${d.date}|CANAL`];
+      byTech[d.tech].revenu += detail ? detail.totalGset : (d.otOK || 0) * avgPrices.canal;
     });
     return Object.values(byTech).sort((a, b) => b.total - a.total);
-  }, [filteredCurrentPeriod, avgPrices, isDirection]);
+  }, [filteredCurrentPeriod, avgPrices, isDirection, groupedDetails]);
 
   // Données pour graphique comparatif
   const comparisonChartData = useMemo(() => {
@@ -550,6 +608,27 @@ function DailyPage({ orangePrices, canalPrices, profile }) {
       </div>
     </div>
   );
+
+  // Ouvrir le modal de ventilation
+  const handleOpenDetail = async (entry) => {
+    try {
+      const type = entry.source === 'Orange' ? 'ORANGE' : 'CANAL';
+      const details = await getDailyDetails({ technicien: entry.tech, date: entry.date, type });
+      setExistingDetails(details);
+      setDetailModalEntry(entry);
+    } catch (err) {
+      console.error('Erreur chargement détails:', err);
+    }
+  };
+
+  // Vérifier si le tech connecté peut détailler cette ligne
+  const canDetail = useCallback((techName) => {
+    if (isDirection) return true;
+    if (!profile?.aliases?.length) return false;
+    const aliases = profile.aliases.map(a => a.toLowerCase());
+    const techLower = (techName || '').toLowerCase();
+    return aliases.some(a => techLower.includes(a) || a.includes(techLower));
+  }, [isDirection, profile]);
 
   if (dailyData.orange.length === 0 && dailyData.canal.length === 0 && !loading) {
     return (
@@ -844,11 +923,86 @@ function DailyPage({ orangePrices, canalPrices, profile }) {
           {(filteredCurrentPeriod.orange.length + filteredCurrentPeriod.canal.length) > 20 && <button onClick={() => setShowAllDetails(!showAllDetails)} className={`px-4 py-2 rounded-lg text-sm font-medium ${showAllDetails ? 'bg-gray-200 text-gray-700' : 'bg-emerald-500 text-white hover:bg-emerald-600'}`}>{showAllDetails ? 'Réduire' : `Afficher tout`}</button>}
         </div>
         <div className={`overflow-x-auto ${showAllDetails ? 'max-h-[600px]' : 'max-h-80'}`}>
-          <table className="w-full"><thead className={`${t.bgTertiary} sticky top-0`}><tr><th className={`px-4 py-3 text-left text-xs font-semibold ${t.textSecondary} uppercase`}>Date</th>{isDirection && <th className={`px-4 py-3 text-left text-xs font-semibold ${t.textSecondary} uppercase`}>Technicien</th>}<th className={`px-4 py-3 text-left text-xs font-semibold ${t.textSecondary} uppercase`}>Source</th><th className={`px-4 py-3 text-center text-xs font-semibold ${t.textSecondary} uppercase`}>Sem.</th><th className={`px-4 py-3 text-center text-xs font-semibold ${t.textSecondary} uppercase`}>OK</th><th className={`px-4 py-3 text-center text-xs font-semibold ${t.textSecondary} uppercase`}>NOK</th><th className={`px-4 py-3 text-center text-xs font-semibold ${t.textSecondary} uppercase`}>Report</th></tr></thead>
-            <tbody className={`divide-y ${t.border}`}>{[...filteredCurrentPeriod.orange.map(d => ({ ...d, source: 'Orange' })), ...filteredCurrentPeriod.canal.map(d => ({ ...d, source: 'Canal+' }))].sort((a, b) => b.date.localeCompare(a.date) || a.tech.localeCompare(b.tech)).slice(0, showAllDetails ? 500 : 20).map((d, idx) => (<tr key={`${d.source}-${d.tech}-${d.date}-${idx}`} className={t.bgHover}><td className={`px-4 py-2.5 text-sm ${t.text}`}>{formatDateDisplay(d.date)}</td>{isDirection && <td className={`px-4 py-2.5 text-sm font-medium ${t.text}`}>{d.tech}</td>}<td className="px-4 py-2.5"><span className={`px-2 py-1 rounded-full text-xs font-medium ${d.source === 'Orange' ? 'bg-orange-100 text-orange-700' : 'bg-purple-100 text-purple-700'}`}>{d.source}</span></td><td className="px-4 py-2.5 text-center"><span className={`px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-700`}>S{getWeekOfMonth(d.date)}</span></td><td className="px-4 py-2.5 text-center text-sm font-medium text-emerald-500">{d.otOK || 0}</td><td className="px-4 py-2.5 text-center text-sm font-medium text-red-500">{d.otNOK || 0}</td><td className="px-4 py-2.5 text-center text-sm font-medium text-yellow-500">{d.otReportes || 0}</td></tr>))}</tbody>
+          <table className="w-full">
+            <thead className={`${t.bgTertiary} sticky top-0`}>
+              <tr>
+                <th className={`px-4 py-3 text-left text-xs font-semibold ${t.textSecondary} uppercase`}>Date</th>
+                {isDirection && <th className={`px-4 py-3 text-left text-xs font-semibold ${t.textSecondary} uppercase`}>Technicien</th>}
+                <th className={`px-4 py-3 text-left text-xs font-semibold ${t.textSecondary} uppercase`}>Source</th>
+                <th className={`px-4 py-3 text-center text-xs font-semibold ${t.textSecondary} uppercase`}>Sem.</th>
+                <th className={`px-4 py-3 text-center text-xs font-semibold ${t.textSecondary} uppercase`}>OK</th>
+                <th className={`px-4 py-3 text-center text-xs font-semibold ${t.textSecondary} uppercase`}>NOK</th>
+                <th className={`px-4 py-3 text-center text-xs font-semibold ${t.textSecondary} uppercase`}>Report</th>
+                <th className={`px-4 py-3 text-center text-xs font-semibold ${t.textSecondary} uppercase`}>Action</th>
+              </tr>
+            </thead>
+            <tbody className={`divide-y ${t.border}`}>
+              {[...filteredCurrentPeriod.orange.map(d => ({ ...d, source: 'Orange' })), ...filteredCurrentPeriod.canal.map(d => ({ ...d, source: 'Canal+' }))]
+                .sort((a, b) => b.date.localeCompare(a.date) || a.tech.localeCompare(b.tech))
+                .slice(0, showAllDetails ? 500 : 20)
+                .map((d, idx) => {
+                  const type = d.source === 'Orange' ? 'ORANGE' : 'CANAL';
+                  const detailed = isDetailed(d.tech, d.date, type);
+                  const canAct = canDetail(d.tech) && (d.otOK || 0) > 0;
+
+                  return (
+                    <tr key={`${d.source}-${d.tech}-${d.date}-${idx}`} className={t.bgHover}>
+                      <td className={`px-4 py-2.5 text-sm ${t.text}`}>{formatDateDisplay(d.date)}</td>
+                      {isDirection && <td className={`px-4 py-2.5 text-sm font-medium ${t.text}`}>{d.tech}</td>}
+                      <td className="px-4 py-2.5"><span className={`px-2 py-1 rounded-full text-xs font-medium ${d.source === 'Orange' ? 'bg-orange-100 text-orange-700' : 'bg-purple-100 text-purple-700'}`}>{d.source}</span></td>
+                      <td className="px-4 py-2.5 text-center"><span className={`px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-700`}>S{getWeekOfMonth(d.date)}</span></td>
+                      <td className="px-4 py-2.5 text-center text-sm font-medium text-emerald-500">{d.otOK || 0}</td>
+                      <td className="px-4 py-2.5 text-center text-sm font-medium text-red-500">{d.otNOK || 0}</td>
+                      <td className="px-4 py-2.5 text-center text-sm font-medium text-yellow-500">{d.otReportes || 0}</td>
+                      <td className="px-4 py-2.5 text-center">
+                        {canAct ? (
+                          detailed ? (
+                            <button
+                              onClick={() => handleOpenDetail(d)}
+                              className="px-2.5 py-1 rounded-lg text-xs font-medium bg-emerald-100 text-emerald-700 hover:bg-emerald-200 transition-colors"
+                            >
+                              Détaillé
+                            </button>
+                          ) : (
+                            <button
+                              onClick={() => handleOpenDetail(d)}
+                              className="px-2.5 py-1 rounded-lg text-xs font-medium bg-blue-100 text-blue-700 hover:bg-blue-200 transition-colors"
+                            >
+                              Détailler
+                            </button>
+                          )
+                        ) : (
+                          <span className={`text-xs ${t.textMuted}`}>-</span>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+            </tbody>
           </table>
         </div>
       </div>
+
+      {/* Modal de ventilation */}
+      {detailModalEntry && (
+        <DailyDetailModal
+          entry={detailModalEntry}
+          prices={detailModalEntry.source === 'Orange' ? orangePrices : canalPrices}
+          existingDetails={existingDetails}
+          isDirection={isDirection}
+          onSave={async (details) => {
+            await saveDailyVentilation(
+              detailModalEntry.tech,
+              detailModalEntry.date,
+              detailModalEntry.source === 'Orange' ? 'ORANGE' : 'CANAL',
+              details
+            );
+            setDetailModalEntry(null);
+            await loadDailyData();
+          }}
+          onClose={() => setDetailModalEntry(null)}
+        />
+      )}
     </div>
   );
 }

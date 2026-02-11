@@ -482,6 +482,76 @@ export async function getRejetsTechniciens() {
   }
 }
 
+// ========== DAILY DETAILS (VENTILATION DES OT) ==========
+
+export async function getDailyDetails(filters = {}) {
+  try {
+    let query = supabase.from('daily_details').select('*');
+    if (filters.technicien) query = query.eq('technicien', filters.technicien);
+    if (filters.date) query = query.eq('date', filters.date);
+    if (filters.type) query = query.eq('type', filters.type);
+    const { data, error } = await query.order('article_code');
+    if (error && !isAbortError(error)) {
+      console.error('Error fetching daily details:', error);
+      return [];
+    }
+    return data || [];
+  } catch (err) {
+    if (isAbortError(err)) return [];
+    console.error('Error fetching daily details:', err);
+    return [];
+  }
+}
+
+export async function getDailyDetailsSummary() {
+  try {
+    const { data, error } = await supabase
+      .from('daily_details')
+      .select('technicien, date, type, is_supplement, quantity, total_gset, total_tech');
+    if (error && !isAbortError(error)) {
+      console.error('Error fetching daily details summary:', error);
+      return [];
+    }
+    return data || [];
+  } catch (err) {
+    if (isAbortError(err)) return [];
+    console.error('Error fetching daily details summary:', err);
+    return [];
+  }
+}
+
+export async function saveDailyVentilation(technicien, date, type, details) {
+  // 1. Supprimer les anciennes ventilations pour cette entrée
+  const { error: delError } = await supabase
+    .from('daily_details')
+    .delete()
+    .eq('technicien', technicien)
+    .eq('date', date)
+    .eq('type', type);
+  if (delError) throw delError;
+
+  // 2. Insérer les nouvelles (seulement celles avec qty > 0)
+  const toInsert = details
+    .filter(d => d.quantity > 0)
+    .map(d => ({
+      technicien,
+      date,
+      type,
+      article_code: d.article_code,
+      is_supplement: d.is_supplement || false,
+      quantity: d.quantity,
+      unit_gset_price: d.unit_gset_price,
+      unit_tech_price: d.unit_tech_price
+    }));
+
+  if (toInsert.length > 0) {
+    const { error: insError } = await supabase
+      .from('daily_details')
+      .insert(toInsert);
+    if (insError) throw insError;
+  }
+}
+
 export async function getRejetsStats() {
   try {
     const { data, error } = await supabase
