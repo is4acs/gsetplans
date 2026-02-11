@@ -8,7 +8,7 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   PieChart as RePieChart, Pie, LineChart, Line, Legend, ComposedChart, Area
 } from 'recharts';
-import * as XLSX from 'xlsx';
+// XLSX est lazy-loadé uniquement lors de l'import de fichiers
 import { useTheme, useAmountVisibility } from '../contexts';
 import { themes } from '../utils/theme';
 import {
@@ -404,6 +404,7 @@ function DailyPage({ orangePrices, canalPrices, profile }) {
     if (!file) return;
     setImporting(true);
     try {
+      const XLSX = await import('xlsx');
       const data = await file.arrayBuffer();
       const workbook = XLSX.read(data);
       const orangeSheet = workbook.Sheets['SUIVI JOURNALIER ORANGE'];

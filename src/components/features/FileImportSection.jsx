@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Upload } from 'lucide-react';
-import * as XLSX from 'xlsx';
+// XLSX est lazy-loadé uniquement lors de l'import de fichiers
 import { useTheme } from '../../contexts';
 import { themes } from '../../utils/theme';
 import { MONTHS, YEARS } from '../../utils/constants';
@@ -26,6 +26,7 @@ function FileImportSection({ orangePrices, canalPrices, onImportComplete }) {
     setError('');
 
     try {
+      const XLSX = await import('xlsx');
       const data = await file.arrayBuffer();
       const workbook = XLSX.read(data);
 
@@ -75,6 +76,7 @@ function FileImportSection({ orangePrices, canalPrices, onImportComplete }) {
     setError('');
 
     try {
+      const XLSX = await import('xlsx');
       const data = await selectedFile.arrayBuffer();
       const workbook = XLSX.read(data);
 

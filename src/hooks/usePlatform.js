@@ -78,7 +78,7 @@ export function usePlatform() {
 
     window.addEventListener('resize', updatePlatform, { passive: true });
     window.addEventListener('orientationchange', updatePlatform, { passive: true });
-    window.visualViewport?.addEventListener('resize', updatePlatform);
+    window.visualViewport?.addEventListener('resize', updatePlatform, { passive: true });
 
     return () => {
       window.removeEventListener('resize', updatePlatform);

@@ -1,10 +1,10 @@
-import { useState, useEffect, useCallback, useRef, useTransition } from 'react';
+import { useState, useEffect, useCallback, useRef, useTransition, useMemo } from 'react';
 import {
   LayoutDashboard, Upload, Users, Settings, CalendarDays,
   Euro, TrendingUp, PieChart, User, BarChart3, AlertTriangle,
   XCircle, CheckCircle, Clock, FileWarning, Loader2, Trash2, X
 } from 'lucide-react';
-import * as XLSX from 'xlsx';
+// XLSX est lazy-loadé uniquement lors de l'import de fichiers
 import { useTheme, useAuth } from '../contexts';
 import { themes } from '../utils/theme';
 import { MONTHS } from '../utils/constants';
@@ -66,6 +66,13 @@ function MainDashboard() {
   const isSuperAdmin = profile?.role === 'superadmin';
   const initialLoadDone = useRef(false);
   const periodInitialized = useRef(false);
+
+  // Map indexée pour les lookups de prix O(1) au lieu de Array.find O(n)
+  const orangePriceMap = useMemo(() => {
+    const map = new Map();
+    orangePrices.forEach(p => map.set(p.code, p));
+    return map;
+  }, [orangePrices]);
 
   const navItems = [
     { id: 'dashboard', label: 'Tableau de bord', icon: LayoutDashboard },
@@ -189,73 +196,71 @@ function MainDashboard() {
     localStorage.setItem('gset_rejets_aliases', JSON.stringify(rejetsAliases));
   }, [rejetsAliases]);
 
-  const filterForTech = (interventions, source) => {
-    if (isDirection) return interventions;
+  const filteredOrange = useMemo(() => {
+    if (isDirection) return orangeInterventions;
     const aliases = profile?.aliases || [];
-    return interventions.filter(i => {
-      const tech = (source === 'canal' ? (i.tech || i.tech_name) : i.tech)?.toLowerCase();
+    return orangeInterventions.filter(i => {
+      const tech = i.tech?.toLowerCase();
       return aliases.some(a => tech?.includes(a.toLowerCase()) || a.toLowerCase().includes(tech || ''));
     });
-  };
+  }, [orangeInterventions, isDirection, profile?.aliases]);
 
-  const filteredOrange = filterForTech(orangeInterventions, 'orange');
-  const filteredCanal = filterForTech(canalInterventions, 'canal');
-
-  // Filtrer les rejets pour les techniciens
-  const filteredRejets = (isDirection ? rejets : rejets.filter(r => {
+  const filteredCanal = useMemo(() => {
+    if (isDirection) return canalInterventions;
     const aliases = profile?.aliases || [];
-    const profileName = profile?.name?.toLowerCase() || '';
-    const rejetTech = r.prenom_technicien?.toLowerCase() || '';
-    
-    // Matcher par aliases
-    const matchByAlias = aliases.some(a => {
-      const aliasLower = a.toLowerCase();
-      return rejetTech.includes(aliasLower) || aliasLower.includes(rejetTech);
+    return canalInterventions.filter(i => {
+      const tech = (i.tech || i.tech_name)?.toLowerCase();
+      return aliases.some(a => tech?.includes(a.toLowerCase()) || a.toLowerCase().includes(tech || ''));
     });
-    
-    // Matcher par nom du profil (prénom ou nom complet)
-    const matchByName = profileName && (
-      rejetTech.includes(profileName) || 
-      profileName.includes(rejetTech) ||
-      profileName.split(' ').some(part => part.length > 2 && rejetTech.includes(part.toLowerCase())) ||
-      rejetTech.split(' ').some(part => part.length > 2 && profileName.includes(part.toLowerCase()))
-    );
-    
-    return matchByAlias || matchByName;
-  })).filter(r => rejetsWeekFilter === 'all' || r.semaine === rejetsWeekFilter);
+  }, [canalInterventions, isDirection, profile?.aliases]);
 
-  // Debug: afficher les infos de filtrage dans la console (pour les techniciens)
-  if (!isDirection && rejets.length > 0) {
-    console.log('Debug Rejets - Profile:', profile?.name, 'Aliases:', profile?.aliases);
-    console.log('Debug Rejets - Total rejets:', rejets.length, 'Filtrés:', filteredRejets.length);
-    console.log('Debug Rejets - Techniciens dans rejets:', [...new Set(rejets.map(r => r.prenom_technicien))]);
-  }
+  const filteredRejets = useMemo(() => {
+    const baseRejets = isDirection ? rejets : rejets.filter(r => {
+      const aliases = profile?.aliases || [];
+      const profileName = profile?.name?.toLowerCase() || '';
+      const rejetTech = r.prenom_technicien?.toLowerCase() || '';
 
-  // Semaines disponibles dans les rejets
-  const availableWeeks = [...new Set(rejets.map(r => r.semaine).filter(Boolean))].sort();
+      const matchByAlias = aliases.some(a => {
+        const aliasLower = a.toLowerCase();
+        return rejetTech.includes(aliasLower) || aliasLower.includes(rejetTech);
+      });
 
-  const orangeTotalGset = filteredOrange.reduce((s, i) => {
-    const match = String(i.articles || '').match(/([A-Z]+\d*)/i);
-    const price = match && orangePrices.find(p => p.code === match[1].toUpperCase());
-    return s + (price?.gset_price || i.montant_st || 0);
-  }, 0);
+      const matchByName = profileName && (
+        rejetTech.includes(profileName) ||
+        profileName.includes(rejetTech) ||
+        profileName.split(' ').some(part => part.length > 2 && rejetTech.includes(part.toLowerCase())) ||
+        rejetTech.split(' ').some(part => part.length > 2 && profileName.includes(part.toLowerCase()))
+      );
 
-  const orangeTotalTech = filteredOrange.reduce((s, i) => {
-    const match = String(i.articles || '').match(/([A-Z]+\d*)/i);
-    const price = match && orangePrices.find(p => p.code === match[1].toUpperCase());
-    return s + (price?.tech_price || i.montant_st * 0.55);
-  }, 0);
+      return matchByAlias || matchByName;
+    });
+    return baseRejets.filter(r => rejetsWeekFilter === 'all' || r.semaine === rejetsWeekFilter);
+  }, [rejets, isDirection, profile?.aliases, profile?.name, rejetsWeekFilter]);
 
-  const canalTotalGset = filteredCanal.reduce((s, i) => s + (i.montant_gset || 0), 0);
-  const canalTotalTech = filteredCanal.reduce((s, i) => s + (i.montant_tech || 0), 0);
-  const totalST = orangeTotalGset + canalTotalGset;
-  const totalTech = orangeTotalTech + canalTotalTech;
-  const marge = totalST - totalTech;
+  const availableWeeks = useMemo(
+    () => [...new Set(rejets.map(r => r.semaine).filter(Boolean))].sort(),
+    [rejets]
+  );
 
-  const allInterventions = [
+  const { orangeTotalGset, orangeTotalTech, canalTotalGset, canalTotalTech, totalST, totalTech, marge } = useMemo(() => {
+    let oGset = 0, oTech = 0;
+    filteredOrange.forEach(i => {
+      const match = String(i.articles || '').match(/([A-Z]+\d*)/i);
+      const price = match && orangePriceMap.get(match[1].toUpperCase());
+      oGset += price?.gset_price || i.montant_st || 0;
+      oTech += price?.tech_price || i.montant_st * 0.55;
+    });
+    const cGset = filteredCanal.reduce((s, i) => s + (i.montant_gset || 0), 0);
+    const cTech = filteredCanal.reduce((s, i) => s + (i.montant_tech || 0), 0);
+    const st = oGset + cGset;
+    const tech = oTech + cTech;
+    return { orangeTotalGset: oGset, orangeTotalTech: oTech, canalTotalGset: cGset, canalTotalTech: cTech, totalST: st, totalTech: tech, marge: st - tech };
+  }, [filteredOrange, filteredCanal, orangePriceMap]);
+
+  const allInterventions = useMemo(() => [
     ...filteredOrange.map(i => ({ ...i, source: 'orange' })),
     ...filteredCanal.map(i => ({ ...i, source: 'canal' }))
-  ].sort((a, b) => new Date(b.intervention_date) - new Date(a.intervention_date));
+  ].sort((a, b) => new Date(b.intervention_date) - new Date(a.intervention_date)), [filteredOrange, filteredCanal]);
 
   const getPeriodLabel = () => {
     if (!selectedYear && !selectedMonth) return 'Toutes périodes';
@@ -270,6 +275,7 @@ function MainDashboard() {
     if (!file) return;
     setImportingRejets(true);
     try {
+      const XLSX = await import('xlsx');
       const data = await file.arrayBuffer();
       const workbook = XLSX.read(data, { type: 'array', cellDates: true });
       
@@ -479,43 +485,48 @@ function MainDashboard() {
     }
   };
 
-  // Rejets stats - basés sur la colonne Traitement
-  const rejetsStats = {
-    total: filteredRejets.length,
-    traitementOk: filteredRejets.filter(r => r.statut === 'traitement_ok').length,
-    planifie: filteredRejets.filter(r => r.statut === 'planifie').length,
-    nok: filteredRejets.filter(r => r.statut === 'nok').length,
-    autre: filteredRejets.filter(r => !['traitement_ok', 'planifie', 'nok'].includes(r.statut)).length,
-  };
+  const rejetsStats = useMemo(() => {
+    const stats = { total: filteredRejets.length, traitementOk: 0, planifie: 0, nok: 0, autre: 0 };
+    filteredRejets.forEach(r => {
+      if (r.statut === 'traitement_ok') stats.traitementOk++;
+      else if (r.statut === 'planifie') stats.planifie++;
+      else if (r.statut === 'nok') stats.nok++;
+      else stats.autre++;
+    });
+    return stats;
+  }, [filteredRejets]);
 
-  // Rejets par technicien
-  const rejetsByTech = {};
-  filteredRejets.forEach(r => {
-    const tech = r.prenom_technicien || 'Inconnu';
-    if (!rejetsByTech[tech]) rejetsByTech[tech] = { total: 0, traitement_ok: 0, planifie: 0, nok: 0, autre: 0 };
-    rejetsByTech[tech].total++;
-    if (r.statut === 'traitement_ok') rejetsByTech[tech].traitement_ok++;
-    else if (r.statut === 'planifie') rejetsByTech[tech].planifie++;
-    else if (r.statut === 'nok') rejetsByTech[tech].nok++;
-    else rejetsByTech[tech].autre++;
-  });
+  const rejetsByTech = useMemo(() => {
+    const byTech = {};
+    filteredRejets.forEach(r => {
+      const tech = r.prenom_technicien || 'Inconnu';
+      if (!byTech[tech]) byTech[tech] = { total: 0, traitement_ok: 0, planifie: 0, nok: 0, autre: 0 };
+      byTech[tech].total++;
+      if (r.statut === 'traitement_ok') byTech[tech].traitement_ok++;
+      else if (r.statut === 'planifie') byTech[tech].planifie++;
+      else if (r.statut === 'nok') byTech[tech].nok++;
+      else byTech[tech].autre++;
+    });
+    return byTech;
+  }, [filteredRejets]);
 
-  // Rejets par semaine - trier par S1, S2, S3, S4
-  const rejetsByWeek = {};
-  rejets.forEach(r => {
-    let week = r.semaine || 'Non défini';
-    // Normaliser le format de semaine
-    if (week && /^S?\d+$/i.test(week)) {
-      const num = parseInt(week.replace(/\D/g, ''));
-      week = `S${Math.min(num, 4)}`; // Limiter à S4
-    }
-    if (!rejetsByWeek[week]) rejetsByWeek[week] = { total: 0, traitement_ok: 0, planifie: 0, nok: 0, autre: 0 };
-    rejetsByWeek[week].total++;
-    if (r.statut === 'traitement_ok') rejetsByWeek[week].traitement_ok++;
-    else if (r.statut === 'planifie') rejetsByWeek[week].planifie++;
-    else if (r.statut === 'nok') rejetsByWeek[week].nok++;
-    else rejetsByWeek[week].autre++;
-  });
+  const rejetsByWeek = useMemo(() => {
+    const byWeek = {};
+    rejets.forEach(r => {
+      let week = r.semaine || 'Non défini';
+      if (week && /^S?\d+$/i.test(week)) {
+        const num = parseInt(week.replace(/\D/g, ''));
+        week = `S${Math.min(num, 4)}`;
+      }
+      if (!byWeek[week]) byWeek[week] = { total: 0, traitement_ok: 0, planifie: 0, nok: 0, autre: 0 };
+      byWeek[week].total++;
+      if (r.statut === 'traitement_ok') byWeek[week].traitement_ok++;
+      else if (r.statut === 'planifie') byWeek[week].planifie++;
+      else if (r.statut === 'nok') byWeek[week].nok++;
+      else byWeek[week].autre++;
+    });
+    return byWeek;
+  }, [rejets]);
 
   // Fonction pour afficher le statut avec couleur
   const getStatutDisplay = (statut) => {
@@ -531,15 +542,14 @@ function MainDashboard() {
     }
   };
 
-  // Trier les semaines : S1, S2, S3, S4, puis le reste
-  const sortedWeeks = Object.keys(rejetsByWeek).sort((a, b) => {
+  const sortedWeeks = useMemo(() => Object.keys(rejetsByWeek).sort((a, b) => {
     const aMatch = a.match(/^S(\d+)$/i);
     const bMatch = b.match(/^S(\d+)$/i);
     if (aMatch && bMatch) return parseInt(aMatch[1]) - parseInt(bMatch[1]);
     if (aMatch) return -1;
     if (bMatch) return 1;
     return a.localeCompare(b);
-  });
+  }), [rejetsByWeek]);
 
   // Alias modal component
   const AliasModal = () => {

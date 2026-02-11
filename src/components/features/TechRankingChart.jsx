@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, memo } from 'react';
 import { Trophy, Crown } from 'lucide-react';
 import { useTheme, useAmountVisibility } from '../../contexts';
 import { themes } from '../../utils/theme';
@@ -73,4 +73,4 @@ function TechRankingChart({ orangeInterventions, canalInterventions, orangePrice
   );
 }
 
-export default TechRankingChart;
+export default memo(TechRankingChart);

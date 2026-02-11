@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, memo } from 'react';
 import { Euro, Activity, TrendingUp, PieChart, Users } from 'lucide-react';
 import { useTheme, useAmountVisibility } from '../../contexts';
 import { themes } from '../../utils/theme';
@@ -131,4 +131,4 @@ function TechDashboardStats({ filteredOrange, filteredCanal, orangePrices, profi
   );
 }
 
-export default TechDashboardStats;
+export default memo(TechDashboardStats);

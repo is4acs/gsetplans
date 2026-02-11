@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, memo } from 'react';
 import { TrendingUp } from 'lucide-react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { useTheme, useAmountVisibility } from '../../contexts';
@@ -125,4 +125,4 @@ function RevenueTrendChart({
   );
 }
 
-export default RevenueTrendChart;
+export default memo(RevenueTrendChart);

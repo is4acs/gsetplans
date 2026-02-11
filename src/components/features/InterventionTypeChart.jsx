@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, memo } from 'react';
 import { PieChart } from 'lucide-react';
 import { PieChart as RePieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts';
 import { useTheme, useAmountVisibility } from '../../contexts';
@@ -102,4 +102,4 @@ function InterventionTypeChart({
   );
 }
 
-export default InterventionTypeChart;
+export default memo(InterventionTypeChart);
