@@ -521,6 +521,10 @@ export async function getDailyDetailsSummary() {
 }
 
 export async function saveDailyVentilation(technicien, date, type, details) {
+  // Récupérer l'uid de l'utilisateur connecté
+  const { data: { user } } = await supabase.auth.getUser();
+  const userId = user?.id;
+
   // 1. Supprimer les anciennes ventilations pour cette entrée
   const { error: delError } = await supabase
     .from('daily_details')
@@ -541,7 +545,8 @@ export async function saveDailyVentilation(technicien, date, type, details) {
       is_supplement: d.is_supplement || false,
       quantity: d.quantity,
       unit_gset_price: d.unit_gset_price,
-      unit_tech_price: d.unit_tech_price
+      unit_tech_price: d.unit_tech_price,
+      created_by: userId
     }));
 
   if (toInsert.length > 0) {

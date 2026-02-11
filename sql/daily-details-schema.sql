@@ -29,47 +29,49 @@ CREATE TABLE IF NOT EXISTS public.daily_details (
 ALTER TABLE public.daily_details ENABLE ROW LEVEL SECURITY;
 
 -- 3. POLICIES
+-- Approche simple : tous les authentifiés peuvent lire,
+-- et ils peuvent insérer/modifier/supprimer leurs propres lignes OU si ils sont dir/superadmin
 
--- Tout le monde authentifié peut voir
+-- Lecture pour tous
 CREATE POLICY "daily_details_select"
   ON public.daily_details FOR SELECT
   TO authenticated
   USING (true);
 
--- Les techs peuvent insérer pour eux-mêmes (via created_by) + direction pour tout
+-- Insert : direction/superadmin pour tout, ou created_by = soi-même
 CREATE POLICY "daily_details_insert"
   ON public.daily_details FOR INSERT
   TO authenticated
   WITH CHECK (
-    EXISTS (
+    created_by = auth.uid()
+    OR EXISTS (
       SELECT 1 FROM public.profiles WHERE id = auth.uid()
-      AND (role = 'dir' OR role = 'superadmin')
+      AND role IN ('dir', 'superadmin')
     )
-    OR created_by = auth.uid()
   );
 
--- Les techs peuvent modifier leurs propres lignes + direction pour tout
+-- Update : direction/superadmin pour tout, ou propriétaire de la ligne
 CREATE POLICY "daily_details_update"
   ON public.daily_details FOR UPDATE
   TO authenticated
   USING (
-    EXISTS (
+    created_by = auth.uid()
+    OR EXISTS (
       SELECT 1 FROM public.profiles WHERE id = auth.uid()
-      AND (role = 'dir' OR role = 'superadmin')
+      AND role IN ('dir', 'superadmin')
     )
-    OR created_by = auth.uid()
   );
 
--- Les techs peuvent supprimer leurs propres lignes + direction pour tout
+-- Delete : direction/superadmin pour tout, ou propriétaire de la ligne
 CREATE POLICY "daily_details_delete"
   ON public.daily_details FOR DELETE
   TO authenticated
   USING (
-    EXISTS (
+    created_by = auth.uid()
+    OR EXISTS (
       SELECT 1 FROM public.profiles WHERE id = auth.uid()
-      AND (role = 'dir' OR role = 'superadmin')
+      AND role IN ('dir', 'superadmin')
     )
-    OR created_by = auth.uid()
   );
 
 -- 4. INDEX pour performances
@@ -82,5 +84,5 @@ CREATE INDEX IF NOT EXISTS idx_daily_details_created_by ON public.daily_details(
 -- - daily_details : ventilation des OT par code article
 -- - is_supplement : TRUE pour les travaux supplémentaires Canal+ (TXPA-TXPD)
 -- - total_gset/total_tech : colonnes générées automatiquement
--- - RLS : techs modifient leurs propres lignes, direction modifie tout
+-- - RLS : techs modifient leurs propres lignes (via created_by), direction modifie tout
 -- =====================================================
