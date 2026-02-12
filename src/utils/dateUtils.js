@@ -24,7 +24,7 @@ import {
   getYear,
   parse as dateFnsParse,
 } from 'date-fns';
-import { fr } from 'date-fns/locale';
+import { fr } from 'date-fns/locale/fr.js';
 
 /**
  * Default date format for the application
