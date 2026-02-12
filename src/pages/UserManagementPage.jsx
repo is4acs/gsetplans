@@ -5,6 +5,7 @@ import {
 import { useTheme } from '../contexts';
 import { themes } from '../utils/theme';
 import { supabase, updateProfile, getAvailableTechNames } from '../lib/supabase';
+import { logError } from '../utils/helpers';
 
 function UserManagementPage({ profiles, onRefresh, currentUserProfile }) {
   const { theme } = useTheme();
@@ -80,7 +81,7 @@ function UserManagementPage({ profiles, onRefresh, currentUserProfile }) {
       if (error) throw error;
       onRefresh?.();
     } catch (err) {
-      console.error('Error deleting user:', err);
+      logError('delete_user', err);
     } finally {
       setDeleting(false);
       setConfirmDelete(null);
@@ -95,7 +96,7 @@ function UserManagementPage({ profiles, onRefresh, currentUserProfile }) {
       await updateProfile(profile.id, { role: newRole });
       onRefresh?.();
     } catch (err) {
-      console.error('Error changing role:', err);
+      logError('change_role', err);
     } finally {
       setChangingRole(null);
       setConfirmRoleChange(null);
@@ -113,7 +114,7 @@ function UserManagementPage({ profiles, onRefresh, currentUserProfile }) {
       setCustomAlias(prev => ({ ...prev, [profile.id]: '' }));
       onRefresh?.();
     } catch (err) {
-      console.error('Error adding alias:', err);
+      logError('add_alias', err);
     } finally {
       setSaving(null);
     }
@@ -126,7 +127,7 @@ function UserManagementPage({ profiles, onRefresh, currentUserProfile }) {
       await updateProfile(profile.id, { aliases: newAliases });
       onRefresh?.();
     } catch (err) {
-      console.error('Error removing alias:', err);
+      logError('remove_alias', err);
     } finally {
       setSaving(null);
     }

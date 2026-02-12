@@ -4,8 +4,13 @@ import { Upload } from 'lucide-react';
 import { useTheme } from '../../contexts';
 import { themes } from '../../utils/theme';
 import { MONTHS, YEARS } from '../../utils/constants';
-import { parseExcelDate, getWeekNumber, getColValue, extractCodes } from '../../utils/helpers';
+import { parseExcelDate, getWeekNumber, getColValue, extractCodes, logError } from '../../utils/helpers';
 import { insertOrangeInterventions, insertCanalInterventions, createImport } from '../../lib/supabase';
+import {
+  validateImportFile,
+  validateOrangeIntervention,
+  validateCanalIntervention,
+} from '../../utils/validation';
 import LoadingSpinner from '../ui/LoadingSpinner';
 
 function FileImportSection({ orangePrices, canalPrices, onImportComplete }) {
@@ -26,6 +31,15 @@ function FileImportSection({ orangePrices, canalPrices, onImportComplete }) {
     setError('');
 
     try {
+      // Validate file before parsing
+      const validation = await validateImportFile(file);
+      if (!validation.valid) {
+        setError(validation.error);
+        setPreview(null);
+        setImportType('');
+        return;
+      }
+
       const XLSX = await import('xlsx');
       const data = await file.arrayBuffer();
       const workbook = XLSX.read(data);
@@ -66,6 +80,7 @@ function FileImportSection({ orangePrices, canalPrices, onImportComplete }) {
 
       setPreview({ headers: json[0], rows: json.slice(1, 6), total: json.length - 1 });
     } catch (err) {
+      logError('file_import_preview', err);
       setError('Erreur lecture fichier: ' + err.message);
     }
   };
@@ -112,7 +127,7 @@ function FileImportSection({ orangePrices, canalPrices, onImportComplete }) {
       if (importType === 'orange') {
         const interventions = json.map(row => {
           const date = parseExcelDate(getColValue(row, 'Date Cloture', 'date_cloture', 'Date'));
-          return {
+          const intervention = {
             periode,
             nd: getColValue(row, 'ND', 'nd') || '',
             tech: getColValue(row, 'Technicien', 'tech', 'TECH') || '',
@@ -123,6 +138,14 @@ function FileImportSection({ orangePrices, canalPrices, onImportComplete }) {
             month: selectedMonth,
             year: selectedYear
           };
+
+          // Validate intervention
+          const validation = validateOrangeIntervention(intervention);
+          if (!validation.valid) {
+            logError('orange_intervention_validation', new Error(`Validation failed: ${validation.errors.join(', ')}`), { intervention });
+          }
+
+          return intervention;
         }).filter(i => i.tech && i.montant_st > 0);
 
         await insertOrangeInterventions(interventions);
@@ -157,7 +180,7 @@ function FileImportSection({ orangePrices, canalPrices, onImportComplete }) {
           const techRaw = getColValue(row, 'TECHNICIEN', 'GSE', 'gse', 'Tech');
           const tech = techRaw ? String(techRaw).trim() : '';
 
-          return {
+          const intervention = {
             periode,
             tech,
             tech_name: getColValue(row, 'Nom Technicien', 'nom_technicien') || '',
@@ -171,6 +194,14 @@ function FileImportSection({ orangePrices, canalPrices, onImportComplete }) {
             month: selectedMonth,
             year: selectedYear
           };
+
+          // Validate intervention
+          const validation = validateCanalIntervention(intervention);
+          if (!validation.valid) {
+            logError('canal_intervention_validation', new Error(`Validation failed: ${validation.errors.join(', ')}`), { intervention });
+          }
+
+          return intervention;
         }).filter(i => i.tech && (i.montant_gset > 0 || i.facturation));
 
         await insertCanalInterventions(interventions);
@@ -188,6 +219,7 @@ function FileImportSection({ orangePrices, canalPrices, onImportComplete }) {
       setImportType('');
       onImportComplete?.();
     } catch (err) {
+      logError('file_import', err);
       setError(err.message);
     } finally {
       setImporting(false);

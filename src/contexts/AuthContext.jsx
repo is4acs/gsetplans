@@ -7,7 +7,7 @@ import {
   getProfile,
   onAuthStateChange
 } from '../lib/supabase';
-import { isAbortError } from '../utils/helpers';
+import { isAbortError, logError } from '../utils/helpers';
 
 const AuthContext = createContext();
 
@@ -77,17 +77,16 @@ export function AuthProvider({ children }) {
             const prof = await getProfile(sess.user.id);
             if (isMounted) setProfile(prof);
           } catch (err) {
-            if (!isAbortError(err)) console.error('Error fetching profile:', err);
+            if (!isAbortError(err)) logError('fetch_profile', err);
           }
         }
       } catch (err) {
         if (!isMounted) return;
         if (isAbortError(err)) {
-          console.log('Init aborted, retrying...');
           setTimeout(() => { if (isMounted) initAuth(); }, 500);
           return;
         }
-        console.error('Auth init error:', err);
+        logError('auth_init', err);
         if (err.message?.includes('relation') || err.code === '42P01') {
           setDbConfigured(false);
         } else {
@@ -104,7 +103,6 @@ export function AuthProvider({ children }) {
     initAuth();
 
     const { data: { subscription } } = onAuthStateChange(async (event, sess) => {
-      console.log('Auth event:', event);
       if (event === 'INITIAL_SESSION' || !isMounted || !initialCheckDone) return;
       if (event === 'PASSWORD_RECOVERY') {
         setShowResetPassword(true);
@@ -116,7 +114,7 @@ export function AuthProvider({ children }) {
           const prof = await getProfile(sess.user.id);
           if (isMounted) setProfile(prof);
         } catch (err) {
-          if (!isAbortError(err)) console.error(err);
+          if (!isAbortError(err)) logError('fetch_profile_signin', err);
         }
       } else if (event === 'SIGNED_OUT' && isMounted) {
         setProfile(null);
@@ -140,7 +138,7 @@ export function AuthProvider({ children }) {
       setSession(null);
       setProfile(null);
     } catch (err) {
-      console.error(err);
+      logError('signout', err);
     }
   }, []);
 
@@ -158,7 +156,7 @@ export function AuthProvider({ children }) {
         }
       }
     } catch (e) {
-      console.error('Error after password reset:', e);
+      logError('password_reset_complete', e);
     }
   }, []);
 

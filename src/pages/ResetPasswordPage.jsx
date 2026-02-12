@@ -2,7 +2,7 @@ import { useState, useMemo } from 'react';
 import { KeyRound, Check, Eye, EyeOff, AlertCircle } from 'lucide-react';
 import { updatePassword } from '../lib/supabase';
 import { Logo, LoadingSpinner } from '../components/ui';
-import { calculatePasswordStrength } from '../utils/helpers';
+import { calculatePasswordStrength, logError } from '../utils/helpers';
 
 function ResetPasswordPage({ onComplete }) {
   const [newPassword, setNewPassword] = useState('');
@@ -40,7 +40,7 @@ function ResetPasswordPage({ onComplete }) {
         setLoading(false);
       }
     } catch (err) {
-      console.error('Password update error:', err);
+      logError('password_update', err);
       setError(err.message || 'Erreur lors de la mise à jour. Veuillez redemander un lien.');
       setLoading(false);
     }

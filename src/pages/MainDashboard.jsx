@@ -8,6 +8,7 @@ import {
 import { useTheme, useAuth } from '../contexts';
 import { themes } from '../utils/theme';
 import { MONTHS } from '../utils/constants';
+import { logError } from '../utils/helpers';
 import {
   getAllProfiles, getOrangePrices, getCanalPrices,
   getImports, getAvailablePeriods,
@@ -100,7 +101,7 @@ function MainDashboard() {
       setRejets(rejetsData);
       setRejetsImports(rejetsImportsData);
     } catch (err) {
-      console.error('Error loading rejets:', err);
+      logError('load_rejets', err);
     }
   }, []);
 
@@ -141,7 +142,7 @@ function MainDashboard() {
 
       await loadRejetsData();
     } catch (err) {
-      console.error('Error loading data:', err);
+      logError('load_data', err);
     } finally {
       setLoading(false);
     }
@@ -156,7 +157,7 @@ function MainDashboard() {
       });
       await loadInterventions(selectedYear, selectedMonth, selectedWeek, viewMode);
     } catch (err) {
-      console.error('Error refreshing:', err);
+      logError('refresh', err);
     }
   }, [selectedYear, selectedMonth, selectedWeek, viewMode, loadInterventions]);
 
@@ -279,8 +280,6 @@ function MainDashboard() {
       const data = await file.arrayBuffer();
       const workbook = XLSX.read(data, { type: 'array', cellDates: true });
       
-      console.log('Feuilles trouvées:', workbook.SheetNames);
-      
       const allRecords = [];
       const periode = `Rejets ${new Date().toLocaleDateString('fr-FR')} - ${file.name}`;
       const today = new Date();
@@ -306,12 +305,8 @@ function MainDashboard() {
         }
         
         if (rows.length === 0) {
-          console.log(`Feuille ${sheetName} vide, ignorée`);
           continue;
         }
-
-        console.log(`Feuille ${sheetName}: ${rows.length} lignes`);
-        console.log('Colonnes:', Object.keys(rows[0]));
 
         // Détecter le numéro de semaine depuis le nom de la feuille (S1, S2, S3, S4 ou Semaine 1, etc.)
         let semaine;
@@ -351,8 +346,6 @@ function MainDashboard() {
         const ndCol = findCol('nd', 'référence', 'reference', 'numéro');
         const commentCol = findCol('comment', 'remarque', 'observation');
         const traitementCol = findCol('traitement', 'statut', 'status');
-
-        console.log('Colonnes détectées:', { prenomCol, nomCol, typeCol, motifCol, dateRejetCol, ndCol, traitementCol });
 
         // Fonction pour normaliser le statut depuis la colonne Traitement
         const normalizeStatut = (val) => {
@@ -433,8 +426,6 @@ function MainDashboard() {
               year
             };
           });
-
-        console.log(`Feuille ${sheetName} (${semaine}): ${sheetRecords.length} rejets valides`);
         allRecords.push(...sheetRecords);
       }
 
@@ -458,7 +449,7 @@ function MainDashboard() {
       await loadRejetsData();
       alert(`Import réussi: ${allRecords.length} rejets importés\n\nPar semaine:\n${weekSummary}`);
     } catch (err) {
-      console.error('Rejets import error:', err);
+      logError('rejets_import', err);
       alert('Erreur lors de l\'import: ' + err.message);
     } finally {
       setImportingRejets(false);
@@ -481,7 +472,7 @@ function MainDashboard() {
       await updateRejetStatut(id, newStatut);
       setRejets(prev => prev.map(r => r.id === id ? { ...r, statut: newStatut } : r));
     } catch (err) {
-      console.error('Error updating rejet:', err);
+      logError('update_rejet', err);
     }
   };
 

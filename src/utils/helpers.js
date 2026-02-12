@@ -108,8 +108,32 @@ export function calculatePasswordStrength(password) {
 export function isAbortError(err) {
   if (!err) return false;
   const msg = err.message || err.toString();
-  return msg.includes('abort') || 
-         msg.includes('AbortError') || 
-         msg.includes('signal') || 
+  return msg.includes('abort') ||
+         msg.includes('AbortError') ||
+         msg.includes('signal') ||
          err.name === 'AbortError';
+}
+
+/**
+ * Structured logging function for production
+ * In development, logs to console. In production, this could be replaced
+ * with a proper logging service (Sentry, LogRocket, etc.)
+ */
+export function logError(context, error, metadata = {}) {
+  if (import.meta.env.DEV) {
+    console.error(`[${context}]`, error, metadata);
+  } else {
+    // In production, send to error tracking service
+    // Example: Sentry.captureException(error, { extra: { context, ...metadata } });
+    // For now, silently fail to avoid exposing errors in production
+  }
+}
+
+/**
+ * Structured warning logging
+ */
+export function logWarning(context, message, metadata = {}) {
+  if (import.meta.env.DEV) {
+    console.warn(`[${context}]`, message, metadata);
+  }
 }

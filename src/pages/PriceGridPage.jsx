@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useTheme } from '../contexts';
 import { themes } from '../utils/theme';
 import { updateOrangePrice, updateCanalPrice } from '../lib/supabase';
+import { logError } from '../utils/helpers';
 
 function PriceGridPage({ orangePrices, canalPrices, onRefresh }) {
   const { theme } = useTheme();
@@ -23,7 +24,7 @@ function PriceGridPage({ orangePrices, canalPrices, onRefresh }) {
       }
       onRefresh?.();
     } catch (err) {
-      console.error(err);
+      logError('update_price', err);
     } finally {
       setEditingPrice(null);
     }

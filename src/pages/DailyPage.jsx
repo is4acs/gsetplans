@@ -11,6 +11,7 @@ import {
 // XLSX est lazy-loadé uniquement lors de l'import de fichiers
 import { useTheme, useAmountVisibility } from '../contexts';
 import { themes } from '../utils/theme';
+import { logError } from '../utils/helpers';
 import {
   getDailyTracking, insertDailyTracking, getDailyImports, createDailyImport, deleteDailyImport,
   getDailyDetails, getDailyDetailsSummary, saveDailyVentilation
@@ -138,7 +139,7 @@ function DailyPage({ orangePrices, canalPrices, profile }) {
       setDailyImports(imports);
       setDetailsSummary(detailsRaw);
     } catch (err) {
-      console.error('Erreur chargement daily:', err);
+      logError('load_daily', err);
     } finally {
       setLoading(false);
     }
@@ -523,21 +524,20 @@ function DailyPage({ orangePrices, canalPrices, profile }) {
       
       // Dédupliquer pour éviter l'erreur "ON CONFLICT DO UPDATE cannot affect row a second time"
       const supabaseRecords = deduplicateRecords(allRecords);
-      console.log(`Import: ${allRecords.length} lignes brutes → ${supabaseRecords.length} lignes après déduplication`);
-      
+
       await insertDailyTracking(supabaseRecords);
       const allDates = [...orangeData, ...canalData].map(d => new Date(d.date));
       await createDailyImport({ filename: file.name, total_records: supabaseRecords.length, date_debut: allDates.length > 0 ? new Date(Math.min(...allDates)).toISOString().split('T')[0] : null, date_fin: allDates.length > 0 ? new Date(Math.max(...allDates)).toISOString().split('T')[0] : null, periode });
       await loadDailyData();
       const dupCount = allRecords.length - supabaseRecords.length;
       alert(`Import réussi!\n${supabaseRecords.length} enregistrements importés${dupCount > 0 ? `\n(${dupCount} doublons fusionnés)` : ''}`);
-    } catch (err) { console.error('Import error:', err); alert('Erreur lors de l\'import: ' + err.message); }
+    } catch (err) { logError('daily_import', err); alert('Erreur lors de l\'import: ' + err.message); }
     finally { setImporting(false); e.target.value = ''; }
   };
 
   const clearData = async () => {
     if (confirm('Effacer toutes les données Daily ?')) {
-      for (const imp of dailyImports) { try { await deleteDailyImport(imp.id, imp.periode); } catch (e) { console.error(e); } }
+      for (const imp of dailyImports) { try { await deleteDailyImport(imp.id, imp.periode); } catch (e) { logError('delete_daily_import', e); } }
       await loadDailyData();
     }
   };
@@ -617,7 +617,7 @@ function DailyPage({ orangePrices, canalPrices, profile }) {
       setExistingDetails(details);
       setDetailModalEntry(entry);
     } catch (err) {
-      console.error('Erreur chargement détails:', err);
+      logError('load_daily_details', err);
     }
   };
 

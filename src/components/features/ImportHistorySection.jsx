@@ -4,6 +4,7 @@ import { useTheme } from '../../contexts';
 import { themes } from '../../utils/theme';
 import { deleteImport } from '../../lib/supabase';
 import LoadingSpinner from '../ui/LoadingSpinner';
+import { logError } from '../../utils/helpers';
 
 function ImportHistorySection({ imports, onRefresh }) {
   const { theme } = useTheme();
@@ -17,7 +18,7 @@ function ImportHistorySection({ imports, onRefresh }) {
       await deleteImport(imp.id, imp.type, imp.periode);
       onRefresh?.();
     } catch (err) {
-      console.error(err);
+      logError('delete_import', err);
     } finally {
       setDeleting(false);
       setConfirmDelete(null);

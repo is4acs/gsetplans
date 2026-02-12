@@ -1,8 +1,8 @@
 import { createClient } from '@supabase/supabase-js';
-import { isAbortError } from '../utils/helpers';
+import { isAbortError, logError } from '../utils/helpers';
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://wwaflcfflbzfuqmxstbz.supabase.co';
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Ind3YWZsY2ZmbGJ6ZnVxbXhzdGJ6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjkwMjk1NjcsImV4cCI6MjA4NDYwNTU2N30.NFBfqMdATmOt8YnDg0JcXkV8Y4AwN87dlX8wtN70V2Y';
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {
@@ -119,13 +119,13 @@ async function getInterventions(table, filters = {}) {
     if (filters.week) query = query.eq('week_number', filters.week);
     const { data, error } = await query.order('intervention_date', { ascending: false });
     if (error && !isAbortError(error)) {
-      console.error(`Error fetching ${table}:`, error);
+      logError(`fetch_${table}`, error);
       return [];
     }
     return data || [];
   } catch (err) {
     if (isAbortError(err)) return [];
-    console.error(`Error fetching ${table}:`, err);
+    logError(`fetch_${table}`, err);
     return [];
   }
 }
@@ -134,13 +134,13 @@ async function getPrices(table) {
   try {
     const { data, error } = await supabase.from(table).select('*').order('code');
     if (error && !isAbortError(error)) {
-      console.error(`Error fetching ${table}:`, error);
+      logError(`fetch_${table}`, error);
       return [];
     }
     return data || [];
   } catch (err) {
     if (isAbortError(err)) return [];
-    console.error(`Error fetching ${table}:`, err);
+    logError(`fetch_${table}`, err);
     return [];
   }
 }
@@ -193,13 +193,13 @@ export async function getImports() {
   try {
     const { data, error } = await supabase.from('imports').select('*').order('created_at', { ascending: false });
     if (error && !isAbortError(error)) {
-      console.error('Error fetching imports:', error);
+      logError('fetch_imports', error);
       return [];
     }
     return data || [];
   } catch (err) {
     if (isAbortError(err)) return [];
-    console.error('Error fetching imports:', err);
+    logError('fetch_imports', err);
     return [];
   }
 }
@@ -251,7 +251,7 @@ export async function getAvailablePeriods() {
     };
   } catch (err) {
     if (isAbortError(err)) return { years: [], monthsByYear: {}, weeksByYearMonth: {} };
-    console.error('Error fetching periods:', err);
+    logError('fetch_periods', err);
     return { years: [], monthsByYear: {}, weeksByYearMonth: {} };
   }
 }
@@ -268,7 +268,7 @@ export async function getAvailableTechNames() {
     return Array.from(names).sort();
   } catch (err) {
     if (isAbortError(err)) return [];
-    console.error('Error fetching tech names:', err);
+    logError('fetch_tech_names', err);
     return [];
   }
 }
@@ -287,13 +287,13 @@ export async function getDailyTracking(filters = {}) {
 
     const { data, error } = await query.order('date', { ascending: false });
     if (error && !isAbortError(error)) {
-      console.error('Error fetching daily tracking:', error);
+      logError('fetch_daily_tracking', error);
       return [];
     }
     return data || [];
   } catch (err) {
     if (isAbortError(err)) return [];
-    console.error('Error fetching daily tracking:', err);
+    logError('fetch_daily_tracking', err);
     return [];
   }
 }
@@ -307,7 +307,7 @@ export async function insertDailyTracking(records) {
     })
     .select();
   if (error) {
-    console.error('Erreur upsert daily_tracking:', error);
+    logError('upsert_daily_tracking', error);
     throw error;
   }
   return data || [];
@@ -328,13 +328,13 @@ export async function getDailyImports() {
       .select('*')
       .order('created_at', { ascending: false });
     if (error && !isAbortError(error)) {
-      console.error('Error fetching daily imports:', error);
+      logError('fetch_daily_imports', error);
       return [];
     }
     return data || [];
   } catch (err) {
     if (isAbortError(err)) return [];
-    console.error('Error fetching daily imports:', err);
+    logError('fetch_daily_imports', err);
     return [];
   }
 }
@@ -388,13 +388,13 @@ export async function getRejets(filters = {}) {
 
     const { data, error } = await query.order('date_rejet', { ascending: false });
     if (error && !isAbortError(error)) {
-      console.error('Error fetching rejets:', error);
+      logError('fetch_rejets', error);
       return [];
     }
     return data || [];
   } catch (err) {
     if (isAbortError(err)) return [];
-    console.error('Error fetching rejets:', err);
+    logError('fetch_rejets', err);
     return [];
   }
 }
@@ -405,7 +405,7 @@ export async function insertRejets(records) {
     .insert(records)
     .select();
   if (error) {
-    console.error('Erreur insert rejets:', error);
+    logError('insert_rejets', error);
     throw error;
   }
   return data || [];
@@ -437,13 +437,13 @@ export async function getRejetsImports() {
       .select('*')
       .order('created_at', { ascending: false });
     if (error && !isAbortError(error)) {
-      console.error('Error fetching rejets imports:', error);
+      logError('fetch_rejets_imports', error);
       return [];
     }
     return data || [];
   } catch (err) {
     if (isAbortError(err)) return [];
-    console.error('Error fetching rejets imports:', err);
+    logError('fetch_rejets_imports', err);
     return [];
   }
 }
@@ -492,13 +492,13 @@ export async function getDailyDetails(filters = {}) {
     if (filters.type) query = query.eq('type', filters.type);
     const { data, error } = await query.order('article_code');
     if (error && !isAbortError(error)) {
-      console.error('Error fetching daily details:', error);
+      logError('fetch_daily_details', error);
       return [];
     }
     return data || [];
   } catch (err) {
     if (isAbortError(err)) return [];
-    console.error('Error fetching daily details:', err);
+    logError('fetch_daily_details', err);
     return [];
   }
 }
@@ -509,13 +509,13 @@ export async function getDailyDetailsSummary() {
       .from('daily_details')
       .select('technicien, date, type, is_supplement, quantity, total_gset, total_tech');
     if (error && !isAbortError(error)) {
-      console.error('Error fetching daily details summary:', error);
+      logError('fetch_daily_details_summary', error);
       return [];
     }
     return data || [];
   } catch (err) {
     if (isAbortError(err)) return [];
-    console.error('Error fetching daily details summary:', err);
+    logError('fetch_daily_details_summary', err);
     return [];
   }
 }
