@@ -1,7 +1,8 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, useCallback } from 'react';
 import { LogOut, MoreHorizontal, ChevronUp } from 'lucide-react';
 import { useTheme, useAuth } from '../../contexts';
 import { themes } from '../../utils/theme';
+import { useNativeFeatures } from '../../hooks';
 
 function BottomNavigation({
   navItems,
@@ -13,6 +14,7 @@ function BottomNavigation({
 }) {
   const { theme } = useTheme();
   const { signOut } = useAuth();
+  const { haptic } = useNativeFeatures();
   const t = themes[theme];
   const [showOverflowMenu, setShowOverflowMenu] = useState(false);
 
@@ -30,6 +32,21 @@ function BottomNavigation({
   );
 
   const overflowActive = overflowItems.some(item => item.id === currentView);
+
+  const handleViewChange = useCallback(async (viewId) => {
+    await haptic('light');
+    onViewChange(viewId);
+  }, [haptic, onViewChange]);
+
+  const handleSignOut = useCallback(async () => {
+    await haptic('medium');
+    signOut();
+  }, [haptic, signOut]);
+
+  const toggleOverflow = useCallback(async () => {
+    await haptic('light');
+    setShowOverflowMenu(prev => !prev);
+  }, [haptic]);
 
   useEffect(() => {
     setShowOverflowMenu(false);
@@ -62,7 +79,7 @@ function BottomNavigation({
                 return (
                   <button
                     key={item.id}
-                    onClick={() => onViewChange(item.id)}
+                    onClick={() => handleViewChange(item.id)}
                     className={`w-full flex items-center gap-3 px-3 py-3 rounded-xl text-left transition-colors ${
                       isActive ? 'bg-teal-500/15 text-teal-500' : `${t.text} ${t.bgHover}`
                     }`}
@@ -93,7 +110,7 @@ function BottomNavigation({
             return (
               <button
                 key={item.id}
-                onClick={() => onViewChange(item.id)}
+                onClick={() => handleViewChange(item.id)}
                 className={`flex flex-col items-center justify-center flex-1 h-full py-2 px-1 transition-all active:scale-95 ${
                   isActive ? 'text-teal-500' : t.textSecondary
                 }`}
@@ -119,7 +136,7 @@ function BottomNavigation({
 
           {hasOverflow && (
             <button
-              onClick={() => setShowOverflowMenu(prev => !prev)}
+              onClick={toggleOverflow}
               className={`flex flex-col items-center justify-center flex-1 h-full py-2 px-1 transition-all active:scale-95 ${
                 overflowActive || showOverflowMenu ? 'text-teal-500' : t.textSecondary
               }`}
@@ -134,7 +151,7 @@ function BottomNavigation({
           )}
 
           <button
-            onClick={signOut}
+            onClick={handleSignOut}
             className="flex flex-col items-center justify-center flex-1 h-full py-2 px-1 transition-all active:scale-95 text-red-500"
             style={{
               WebkitTapHighlightColor: 'transparent',

@@ -2,5 +2,32 @@
 	"appId": "com.gsetcaraibes.gsetplans",
 	"appName": "GSET PLANS",
 	"webDir": "dist",
-	"packageClassList": []
+	"server": {
+		"iosScheme": "https"
+	},
+	"plugins": {
+		"StatusBar": {
+			"style": "Light",
+			"backgroundColor": "#ffffff"
+		},
+		"SplashScreen": {
+			"launchShowDuration": 2000,
+			"backgroundColor": "#0d9488",
+			"showSpinner": false
+		},
+		"Keyboard": {
+			"resize": "body",
+			"resizeOnFullScreen": true
+		}
+	},
+	"ios": {
+		"contentInset": "automatic",
+		"preferredContentMode": "mobile"
+	},
+	"packageClassList": [
+		"HapticsPlugin",
+		"KeyboardPlugin",
+		"SplashScreenPlugin",
+		"StatusBarPlugin"
+	]
 }

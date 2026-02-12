@@ -1,8 +1,8 @@
-// HeaderIOS - Header simplifié pour iOS (sans bouton menu)
 import { RefreshCw, Moon, Sun, User } from 'lucide-react';
 import { useTheme, useAuth } from '../../contexts';
 import { themes } from '../../utils/theme';
 import { VisibilityToggle, LoadingSpinner } from '../ui';
+import { useNativeFeatures } from '../../hooks';
 
 function HeaderIOS({
   title,
@@ -15,10 +15,21 @@ function HeaderIOS({
 }) {
   const { theme, setTheme } = useTheme();
   const { profile } = useAuth();
+  const { haptic } = useNativeFeatures();
   const t = themes[theme];
 
   const isSuperAdmin = profile?.role === 'superadmin';
   const isDirection = profile?.role === 'dir' || isSuperAdmin;
+
+  const handleRefresh = async () => {
+    await haptic('light');
+    onRefresh?.();
+  };
+
+  const handleThemeToggle = async () => {
+    await haptic('light');
+    setTheme(theme === 'light' ? 'dark' : 'light');
+  };
 
   return (
     <header 
@@ -45,7 +56,7 @@ function HeaderIOS({
           <VisibilityToggle />
           
           <button
-            onClick={onRefresh}
+            onClick={handleRefresh}
             disabled={loading || isPending}
             className={`w-11 h-11 inline-flex items-center justify-center rounded-xl ${t.bgTertiary} active:scale-95 transition-transform ${
               (loading || isPending) ? 'opacity-50' : ''
@@ -61,7 +72,7 @@ function HeaderIOS({
           </button>
           
           <button
-            onClick={() => setTheme(theme === 'light' ? 'dark' : 'light')}
+            onClick={handleThemeToggle}
             className={`w-11 h-11 inline-flex items-center justify-center rounded-xl ${t.bgTertiary} active:scale-95 transition-transform`}
             style={{ 
               WebkitTapHighlightColor: 'transparent',
