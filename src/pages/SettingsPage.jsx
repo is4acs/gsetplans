@@ -67,19 +67,23 @@ function SettingsPage({ onBack }) {
         ${destructive ? 'text-red-500' : ''}
       `}
     >
-      <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${
+      <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${
         destructive 
           ? 'bg-red-500/10' 
           : theme === 'dark' ? 'bg-slate-700' : 'bg-gray-100'
       }`}>
-        <Icon className={`w-5 h-5 ${destructive ? '' : theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`} />
+        <div className="w-5 h-5 flex items-center justify-center">
+          <Icon className={`w-5 h-5 ${destructive ? '' : theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`} />
+        </div>
       </div>
       <div className="flex-1 min-w-0">
         <p className={`font-medium ${destructive ? '' : t.text}`}>{label}</p>
         {description && <p className={`text-sm ${destructive ? 'text-red-400' : t.textMuted}`}>{description}</p>}
       </div>
-      {children}
-      {onClick && !children && <ChevronRight className={`w-5 h-5 ${t.textMuted}`} />}
+      <div className="flex-shrink-0">
+        {children}
+      </div>
+      {onClick && !children && <ChevronRight className={`w-5 h-5 flex-shrink-0 ${t.textMuted}`} />}
     </div>
   );
 
