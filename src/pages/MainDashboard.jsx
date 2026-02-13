@@ -4,7 +4,6 @@ import {
   Euro, TrendingUp, PieChart, User, BarChart3, AlertTriangle,
   XCircle, CheckCircle, Clock, FileWarning, Loader2, Trash2, X
 } from 'lucide-react';
-// XLSX est lazy-loadé uniquement lors de l'import de fichiers
 import { useTheme, useAuth } from '../contexts';
 import { themes } from '../utils/theme';
 import { MONTHS } from '../utils/constants';
@@ -24,6 +23,7 @@ import {
 import UserManagementPage from './UserManagementPage';
 import PriceGridPage from './PriceGridPage';
 import DailyPage from './DailyPage';
+import SettingsPage from './SettingsPage';
 import { usePlatform } from '../hooks';
 
 function MainDashboard() {
@@ -83,7 +83,8 @@ function MainDashboard() {
       { id: 'rejets', label: 'Rejets', icon: AlertTriangle },
       { id: 'users', label: 'Équipe', icon: Users },
       { id: 'prices', label: 'Grilles Prix', icon: Settings },
-    ] : [])
+    ] : []),
+    { id: 'settings', label: 'Paramètres', icon: Settings }
   ];
 
   const loadInterventions = useCallback(async (year, month, week, mode) => {
@@ -1036,6 +1037,10 @@ function MainDashboard() {
 
           {view === 'daily' && (
             <DailyPage orangePrices={orangePrices} canalPrices={canalPrices} profile={profile} />
+          )}
+
+          {view === 'settings' && (
+            <SettingsPage />
           )}
         </div>
       </main>
