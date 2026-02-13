@@ -84,7 +84,9 @@ function BottomNavigation({
                       isActive ? 'bg-teal-500/15 text-teal-500' : `${t.text} ${t.bgHover}`
                     }`}
                   >
-                    <item.icon className="w-5 h-5 flex-shrink-0" />
+                    <div className="w-5 h-5 flex items-center justify-center flex-shrink-0">
+                      <item.icon className="w-5 h-5" />
+                    </div>
                     <span className="text-sm font-medium">{item.label}</span>
                   </button>
                 );
@@ -104,14 +106,14 @@ function BottomNavigation({
           backdropFilter: 'blur(20px)'
         }}
       >
-        <div className="flex justify-around items-center h-16">
+        <div className="flex justify-around items-stretch h-16">
           {primaryItems.map(item => {
             const isActive = currentView === item.id;
             return (
               <button
                 key={item.id}
                 onClick={() => handleViewChange(item.id)}
-                className={`flex flex-col items-center justify-center flex-1 h-full py-2 px-1 transition-all active:scale-95 ${
+                className={`flex flex-col items-center justify-center flex-1 h-full transition-all active:scale-95 ${
                   isActive ? 'text-teal-500' : t.textSecondary
                 }`}
                 style={{
@@ -119,15 +121,13 @@ function BottomNavigation({
                   touchAction: 'manipulation'
                 }}
               >
-                <item.icon
-                  className={`w-6 h-6 mb-1 ${isActive ? 'text-teal-500' : ''}`}
-                  strokeWidth={isActive ? 2.5 : 2}
-                />
-                <span
-                  className={`text-[10px] font-medium truncate max-w-full ${
-                    isActive ? 'text-teal-500' : ''
-                  }`}
-                >
+                <div className="w-6 h-6 flex items-center justify-center mb-1">
+                  <item.icon
+                    className="w-6 h-6"
+                    strokeWidth={isActive ? 2.5 : 2}
+                  />
+                </div>
+                <span className="text-[10px] font-medium truncate">
                   {item.label}
                 </span>
               </button>
@@ -137,7 +137,7 @@ function BottomNavigation({
           {hasOverflow && (
             <button
               onClick={toggleOverflow}
-              className={`flex flex-col items-center justify-center flex-1 h-full py-2 px-1 transition-all active:scale-95 ${
+              className={`flex flex-col items-center justify-center flex-1 h-full transition-all active:scale-95 ${
                 overflowActive || showOverflowMenu ? 'text-teal-500' : t.textSecondary
               }`}
               style={{
@@ -145,20 +145,24 @@ function BottomNavigation({
                 touchAction: 'manipulation'
               }}
             >
-              {showOverflowMenu ? <ChevronUp className="w-6 h-6 mb-1" /> : <MoreHorizontal className="w-6 h-6 mb-1" />}
+              <div className="w-6 h-6 flex items-center justify-center mb-1">
+                {showOverflowMenu ? <ChevronUp className="w-6 h-6" /> : <MoreHorizontal className="w-6 h-6" />}
+              </div>
               <span className="text-[10px] font-medium">Plus</span>
             </button>
           )}
 
           <button
             onClick={handleSignOut}
-            className="flex flex-col items-center justify-center flex-1 h-full py-2 px-1 transition-all active:scale-95 text-red-500"
+            className="flex flex-col items-center justify-center flex-1 h-full transition-all active:scale-95 text-red-500"
             style={{
               WebkitTapHighlightColor: 'transparent',
               touchAction: 'manipulation'
             }}
           >
-            <LogOut className="w-6 h-6 mb-1" strokeWidth={2} />
+            <div className="w-6 h-6 flex items-center justify-center mb-1">
+              <LogOut className="w-6 h-6" strokeWidth={2} />
+            </div>
             <span className="text-[10px] font-medium">Sortir</span>
           </button>
         </div>

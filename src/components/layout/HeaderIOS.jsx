@@ -49,9 +49,13 @@ function HeaderIOS({
         <button
           onClick={handleRefresh}
           disabled={loading || isPending}
-          className={`p-2 rounded-lg ${t.bgTertiary} active:scale-95 transition-transform ${
+          className={`w-9 h-9 flex items-center justify-center rounded-lg ${t.bgTertiary} active:scale-95 transition-transform ${
             (loading || isPending) ? 'opacity-50' : ''
           }`}
+          style={{
+            WebkitTapHighlightColor: 'transparent',
+            touchAction: 'manipulation'
+          }}
         >
           <RefreshCw 
             className={`w-5 h-5 ${t.textSecondary} ${(loading || isPending) ? 'animate-spin' : ''}`} 

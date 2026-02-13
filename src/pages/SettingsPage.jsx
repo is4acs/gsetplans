@@ -132,14 +132,16 @@ function SettingsPage({ onBack }) {
                   key={opt.value}
                   onClick={() => handleThemeChange(opt.value)}
                   className={`
-                    flex flex-col items-center gap-2 p-3 rounded-xl border-2 transition-all
+                    flex flex-col items-center justify-center gap-2 p-3 rounded-xl border-2 transition-all
                     ${theme === opt.value 
                       ? 'border-teal-500 bg-teal-500/10' 
                       : theme === 'dark' ? 'border-slate-700' : 'border-gray-200'
                     }
                   `}
                 >
-                  <opt.icon className={`w-5 h-5 ${theme === opt.value ? 'text-teal-500' : t.textSecondary}`} />
+                  <div className="w-5 h-5 flex items-center justify-center">
+                    <opt.icon className={`w-5 h-5 ${theme === opt.value ? 'text-teal-500' : t.textSecondary}`} />
+                  </div>
                   <span className={`text-xs font-medium ${theme === opt.value ? 'text-teal-500' : t.text}`}>
                     {opt.label}
                   </span>
