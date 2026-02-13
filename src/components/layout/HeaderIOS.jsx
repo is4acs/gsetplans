@@ -1,5 +1,6 @@
 import { RefreshCw, Moon, Sun, User } from 'lucide-react';
 import { useTheme, useAuth } from '../../contexts';
+import { NotificationsBell } from '../../contexts/NotificationsContext';
 import { themes } from '../../utils/theme';
 import { VisibilityToggle, LoadingSpinner } from '../ui';
 import { useNativeFeatures } from '../../hooks';
@@ -54,6 +55,7 @@ function HeaderIOS({
         
         <div className="flex items-center gap-2 shrink-0 ml-2">
           <VisibilityToggle />
+          <NotificationsBell />
           
           <button
             onClick={handleRefresh}

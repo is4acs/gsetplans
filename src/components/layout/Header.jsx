@@ -1,5 +1,6 @@
 import { Menu, X, RefreshCw, Moon, Sun } from 'lucide-react';
 import { useTheme } from '../../contexts';
+import { NotificationsBell } from '../../contexts/NotificationsContext';
 import { themes } from '../../utils/theme';
 import { VisibilityToggle, LoadingSpinner } from '../ui';
 
@@ -33,6 +34,7 @@ function Header({
       </div>
       <div className="flex items-center gap-2 sm:gap-3">
         <VisibilityToggle />
+        <NotificationsBell />
         <button
           onClick={onRefresh}
           disabled={loading || isPending}

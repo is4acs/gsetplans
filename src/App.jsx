@@ -1,5 +1,5 @@
 import { AlertCircle } from 'lucide-react';
-import { ThemeProvider, AuthProvider, AmountVisibilityProvider, useAuth } from './contexts';
+import { ThemeProvider, AuthProvider, AmountVisibilityProvider, NotificationsProvider, useAuth } from './contexts';
 import { LoadingSpinner } from './components/ui';
 import { LoginPage, ResetPasswordPage, MainDashboard } from './pages';
 
@@ -99,7 +99,9 @@ export default function App() {
     <ThemeProvider>
       <AuthProvider>
         <AmountVisibilityProvider>
-          <AppContent />
+          <NotificationsProvider>
+            <AppContent />
+          </NotificationsProvider>
         </AmountVisibilityProvider>
       </AuthProvider>
     </ThemeProvider>

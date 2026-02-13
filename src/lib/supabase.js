@@ -585,3 +585,163 @@ export async function getRejetsStats() {
     return { total: 0, byTech: {}, byStatut: {} };
   }
 }
+
+// ========== NOTIFICATIONS ==========
+
+export async function getNotifications(userId, unreadOnly = false) {
+  try {
+    let query = supabase
+      .from('notifications')
+      .select('*')
+      .or(`user_id.eq.${userId},user_id.is.null`)
+      .order('created_at', { ascending: false })
+      .limit(50);
+    
+    if (unreadOnly) {
+      query = query.eq('read', false);
+    }
+    
+    const { data, error } = await query;
+    if (error && !isAbortError(error)) {
+      logError('fetch_notifications', error);
+      return [];
+    }
+    return data || [];
+  } catch (err) {
+    if (isAbortError(err)) return [];
+    logError('fetch_notifications', err);
+    return [];
+  }
+}
+
+export async function getUnreadNotificationsCount(userId) {
+  try {
+    const { count, error } = await supabase
+      .from('notifications')
+      .select('*', { count: 'exact', head: true })
+      .or(`user_id.eq.${userId},user_id.is.null`)
+      .eq('read', false);
+    
+    if (error) return 0;
+    return count || 0;
+  } catch (err) {
+    return 0;
+  }
+}
+
+export async function createNotification(notification) {
+  const { data, error } = await supabase
+    .from('notifications')
+    .insert({
+      ...notification,
+      created_at: new Date().toISOString()
+    })
+    .select()
+    .single();
+  
+  if (error) {
+    logError('create_notification', error);
+    return null;
+  }
+  return data;
+}
+
+export async function markNotificationRead(id) {
+  const { error } = await supabase
+    .from('notifications')
+    .update({ read: true, read_at: new Date().toISOString() })
+    .eq('id', id);
+  
+  if (error) logError('mark_notification_read', error);
+}
+
+export async function markAllNotificationsRead(userId) {
+  const { error } = await supabase
+    .from('notifications')
+    .update({ read: true, read_at: new Date().toISOString() })
+    .or(`user_id.eq.${userId},user_id.is.null`)
+    .eq('read', false);
+  
+  if (error) logError('mark_all_notifications_read', error);
+}
+
+export async function deleteNotification(id) {
+  const { error } = await supabase
+    .from('notifications')
+    .delete()
+    .eq('id', id);
+  
+  if (error) logError('delete_notification', error);
+}
+
+export function subscribeToNotifications(userId, callback) {
+  return supabase
+    .channel('notifications')
+    .on(
+      'postgres_changes',
+      {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'notifications',
+        filter: `user_id=eq.${userId}`
+      },
+      (payload) => callback(payload.new)
+    )
+    .on(
+      'postgres_changes',
+      {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'notifications',
+        filter: 'user_id=is.null'
+      },
+      (payload) => callback(payload.new)
+    )
+    .subscribe();
+}
+
+// ========== NOTIFICATION HELPERS ==========
+
+export async function notifyImportComplete(type, filename, count, userId = null) {
+  const typeLabels = {
+    orange: 'Orange',
+    canal: 'Canal+',
+    daily: 'Suivi journalier',
+    rejets: 'Rejets'
+  };
+  
+  return createNotification({
+    type: 'import',
+    title: `Import ${typeLabels[type] || type} terminé`,
+    message: `${count} enregistrements importés depuis "${filename}"`,
+    user_id: userId,
+    data: { type, filename, count }
+  });
+}
+
+export async function notifyImportError(type, filename, error, userId = null) {
+  const typeLabels = {
+    orange: 'Orange',
+    canal: 'Canal+',
+    daily: 'Suivi journalier',
+    rejets: 'Rejets'
+  };
+  
+  return createNotification({
+    type: 'error',
+    title: `Erreur import ${typeLabels[type] || type}`,
+    message: `Échec de l'import "${filename}": ${error}`,
+    user_id: userId,
+    data: { type, filename, error }
+  });
+}
+
+export async function notifyNewRejets(count, userId = null) {
+  return createNotification({
+    type: 'warning',
+    title: 'Nouveaux rejets importés',
+    message: `${count} rejets ont été ajoutés à traiter`,
+    user_id: userId,
+    data: { count }
+  });
+}

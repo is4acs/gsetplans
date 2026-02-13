@@ -1,11 +1,10 @@
 import { useState } from 'react';
 import { Upload } from 'lucide-react';
-// XLSX est lazy-loadé uniquement lors de l'import de fichiers
-import { useTheme } from '../../contexts';
+import { useTheme, useAuth } from '../../contexts';
 import { themes } from '../../utils/theme';
 import { MONTHS, YEARS } from '../../utils/constants';
 import { parseExcelDate, getWeekNumber, getColValue, extractCodes, logError } from '../../utils/helpers';
-import { insertOrangeInterventions, insertCanalInterventions, createImport } from '../../lib/supabase';
+import { insertOrangeInterventions, insertCanalInterventions, createImport, notifyImportComplete } from '../../lib/supabase';
 import {
   validateImportFile,
   validateOrangeIntervention,
@@ -15,6 +14,7 @@ import LoadingSpinner from '../ui/LoadingSpinner';
 
 function FileImportSection({ orangePrices, canalPrices, onImportComplete }) {
   const { theme } = useTheme();
+  const { user } = useAuth();
   const t = themes[theme];
   const [selectedFile, setSelectedFile] = useState(null);
   const [importType, setImportType] = useState('');
@@ -156,6 +156,7 @@ function FileImportSection({ orangePrices, canalPrices, onImportComplete }) {
           total_records: interventions.length,
           total_montant: interventions.reduce((s, i) => s + i.montant_st, 0)
         });
+        await notifyImportComplete('orange', selectedFile.name, interventions.length, user?.id);
       } else {
         const interventions = json.map(row => {
           const date = parseExcelDate(getColValue(row, 'DATE SOLDE', 'Date Realisation', 'date_realisation', 'Date', 'DATE_SOLDE'));
@@ -212,6 +213,7 @@ function FileImportSection({ orangePrices, canalPrices, onImportComplete }) {
           total_records: interventions.length,
           total_montant: interventions.reduce((s, i) => s + i.montant_gset, 0)
         });
+        await notifyImportComplete('canal', selectedFile.name, interventions.length, user?.id);
       }
 
       setSelectedFile(null);
